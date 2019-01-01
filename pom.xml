@@ -7,12 +7,33 @@
     <groupId>com.rags.tools</groupId>
     <artifactId>json-matcher</artifactId>
     <version>1.0.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
 
     <name>Json Matcher</name>
-    <description>A utility that compares 2 JSONs and returns back the best comparison results.
-        Provides users an interface to hook their own matching algorithm.
-    </description>
-    <url>http://www.example.com/example-application</url>
+    <description>A utility that compares 2 JSONs and returns back the best comparison results.</description>
+    <url>http://github.com/raghav-chandra/matcher</url>
+
+    <licenses>
+        <license>
+            <name>MIT License</name>
+            <url>http://www.opensource.org/licenses/mit-license.php</url>
+        </license>
+    </licenses>
+
+    <developers>
+        <developer>
+            <name>Raghav Chandra</name>
+            <email>raghav.yo@gmail.com</email>
+            <!--<organization></organization>
+            <organizationUrl>http://www.sonatype.com</organizationUrl>-->
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:git://github.com/raghav-chandra/matcher.git</connection>
+        <developerConnection>scm:git:ssh://github.com:raghav-chandra/matcher.git</developerConnection>
+        <url>http://github.com/raghav-chandra/matcher/tree/master</url>
+    </scm>
 
     <dependencies>
         <dependency>
@@ -48,6 +69,48 @@
                     <encoding>UTF-8</encoding>
                 </configuration>
             </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <version>1.5</version>
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
         </plugins>
     </build>
 
