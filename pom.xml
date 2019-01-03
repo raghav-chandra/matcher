@@ -9,7 +9,7 @@
     <version>1.0.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
-    <name>Json Matcher</name>
+    <name>json-matcher</name>
     <description>A utility that compares 2 JSONs and returns back the best comparison results.</description>
     <url>http://github.com/raghav-chandra/matcher</url>
 
@@ -34,6 +34,17 @@
         <developerConnection>scm:git:ssh://github.com:raghav-chandra/matcher.git</developerConnection>
         <url>http://github.com/raghav-chandra/matcher/tree/master</url>
     </scm>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>ossrh</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+        </snapshotRepository>
+        <repository>
+            <id>ossrh</id>
+            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+        </repository>
+    </distributionManagement>
 
     <dependencies>
         <dependency>
@@ -111,6 +122,17 @@
                 </executions>
             </plugin>
 
+            <plugin>
+                <groupId>org.sonatype.plugins</groupId>
+                <artifactId>nexus-staging-maven-plugin</artifactId>
+                <version>1.6.7</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <serverId>ossrh</serverId>
+                    <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+                    <autoReleaseAfterClose>true</autoReleaseAfterClose>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 
