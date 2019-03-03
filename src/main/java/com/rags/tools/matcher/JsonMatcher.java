@@ -5,9 +5,7 @@ import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Comparator;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -35,67 +33,75 @@ public class JsonMatcher implements Matcher {
     private static final String COUNT = "count";
 
     @Override
-    public JsonObject compare(JsonArray expected, JsonArray actual) {
-        JsonObject status = new JsonObject().put(STATUS, MATCH_PASS);
+    public MatchingResult compare(JsonArray expected, JsonArray actual) {
+        MatchingResult.Builder result = new MatchingResult.Builder().setMatchingStatus(MatchingStatus.P);
         if (expected == null && actual == null) {
-            return status;
+            return result.create();
         } else if (expected == null || actual == null) {
-            return new JsonObject().put(STATUS, MATCH_FAIL).put(EXPECTED, expected).put(ACTUAL, actual).put(MATCHING_INDEX, -1);
+            return result
+                    .setMatchingStatus(MatchingStatus.F)
+                    .setExpectedValue(expected)
+                    .setActualValue(actual)
+                    .setMatchingIndex(-1)
+                    .create();
         } else if (expected.isEmpty() && actual.isEmpty()) {
-            return status;
+            return result.create();
         }
 
         AtomicInteger counter = new AtomicInteger(-1);
-        List<List<JsonObject>> crossResults = expected.stream().map(exp -> {
+        List<List<MatchingResult>> crossResults = expected.stream().map(exp -> {
             counter.set(counter.get() + 1);
             return findBestMatchingAttrCount(exp, counter.get(), actual);
         }).collect(Collectors.toList());
         return calculateBestMatching(expected, actual, crossResults);
     }
 
-    private JsonObject calculateBestMatching(JsonArray expected, JsonArray actual, List<List<JsonObject>> crossResults) {
+    private MatchingResult calculateBestMatching(JsonArray expected, JsonArray actual, List<List<MatchingResult>> crossResults) {
         boolean[][] matrix = new boolean[expected.size()][actual.size()];
-        JsonObject diff = new JsonObject();
+        Map<String, Object> diffObj = new HashMap<>();
+
         AtomicBoolean finalStatus = new AtomicBoolean(true);
-        List<List<JsonObject>> nonMatching = new LinkedList<>();
+        List<List<MatchingResult>> nonMatching = new LinkedList<>();
         crossResults.forEach(obj -> {
-            List<JsonObject> matchingObjs = obj.stream().filter(data -> data.getString(STATUS).equals(MATCH_PASS)).collect(Collectors.toList());
+            List<MatchingResult> matchingObjs = obj.stream().filter(data -> data.getStatus() == MatchingStatus.P).collect(Collectors.toList());
             boolean matching = !matchingObjs.isEmpty();
             finalStatus.set(finalStatus.get() && matching);
             if (matching) {
                 blockActualColumn(matrix, matchingObjs.get(0));
-                diff.put(String.valueOf(obj.iterator().next().getInteger(ELEMENT_INDEX)), matchingObjs.get(0));
+                diffObj.put(String.valueOf(obj.iterator().next().getElemIndex()), matchingObjs.get(0));
             } else {
                 nonMatching.add(obj);
             }
         });
 
-        nonMatching.forEach(obj -> diff.put(String.valueOf(obj.iterator().next().getInteger(ELEMENT_INDEX)), findBestMatchedItemAndPopulateMatrix(obj, matrix)));
-        JsonObject finalObj = new JsonObject().put(STATUS, finalStatus.get() ? MATCH_PASS : MATCH_FAIL);
+        nonMatching.forEach(obj -> diffObj.put(String.valueOf(obj.iterator().next().getElemIndex()), findBestMatchedItemAndPopulateMatrix(obj, matrix)));
+
+        MatchingResult.Builder result = new MatchingResult.Builder()
+                .setMatchingStatus(finalStatus.get() ? MatchingStatus.P : MatchingStatus.F);
         if (!finalStatus.get()) {
-            finalObj.put(ACTUAL, actual).put(EXPECTED, expected).put(DIFFERENCE, diff);
+            result.setActualValue(result).setExpectedValue(expected).setDifference(diffObj);
         }
-        return finalObj;
+        return result.create();
     }
 
-    private void blockActualColumn(boolean[][] matrix, JsonObject matchingObj) {
+    private void blockActualColumn(boolean[][] matrix, MatchingResult result) {
         for (int i = 0; i < matrix.length; i++) {
-            matrix[i][matchingObj.getInteger(MATCHING_INDEX)] = true;
+            matrix[i][result.getMatIndex()] = true;
         }
     }
 
-    private JsonObject findBestMatchedItemAndPopulateMatrix(List<JsonObject> allMatches, boolean[][] matrix) {
-        List<JsonObject> sorted = allMatches.stream().sorted(Comparator.comparingInt(o -> o.getInteger(COUNT))).collect(Collectors.toList());
-        JsonObject matchedObj = sorted.stream().filter(obj -> !matrix[obj.getInteger(ELEMENT_INDEX)][obj.getInteger(MATCHING_INDEX)]).findFirst().orElse(null);
+    private MatchingResult findBestMatchedItemAndPopulateMatrix(List<MatchingResult> allMatches, boolean[][] matrix) {
+        List<MatchingResult> sorted = allMatches.stream().sorted(Comparator.comparingInt(MatchingResult::getCount)).collect(Collectors.toList());
+        MatchingResult matchedObj = sorted.stream().filter(obj -> !matrix[obj.getElemIndex()][obj.getMatIndex()]).findFirst().orElse(null);
         if (matchedObj != null) {
             blockActualColumn(matrix, matchedObj);
         } else {
-            matchedObj = new JsonObject().put(STATUS, MATCH_NOT_EXISTS);
+            matchedObj = new MatchingResult.Builder().setMatchingStatus(MatchingStatus.NE).create();
         }
         return matchedObj;
     }
 
-    private List<JsonObject> findBestMatchingAttrCount(Object exp, int elemIndex, JsonArray array) {
+    private List<MatchingResult> findBestMatchingAttrCount(Object exp, int elemIndex, JsonArray array) {
         if (exp == null || array == null) {
             LOGGER.info("Either obj to match or array is null");
             return new LinkedList<>();
@@ -103,76 +109,91 @@ public class JsonMatcher implements Matcher {
         AtomicInteger bestMatchIndex = new AtomicInteger(-1);
         return array.stream().map(act -> {
             bestMatchIndex.set(bestMatchIndex.get() + 1);
-            JsonObject status = new JsonObject().put(STATUS, MATCH_FAIL).put(COUNT, 0).put(MATCHING_INDEX, bestMatchIndex.get()).put(ELEMENT_INDEX, elemIndex);
+            MatchingResult.Builder result = new MatchingResult.Builder()
+                    .setMatchingStatus(MatchingStatus.F)
+                    .setMatchingCount(0)
+                    .setMatchingIndex(bestMatchIndex.get())
+                    .setElementIndex(elemIndex);
             if (isPrimitive(exp) && isPrimitive(act)) {
                 if (exp.equals(act)) {
-                    status.put(STATUS, MATCH_PASS).put(COUNT, NEG_INFINITY);
+                    result.setMatchingStatus(MatchingStatus.P).setMatchingCount(NEG_INFINITY);
                 }
             } else if (exp instanceof JsonObject && act instanceof JsonObject) {
-                status = compare((JsonObject) exp, (JsonObject) act).put(MATCHING_INDEX, bestMatchIndex.get()).put(ELEMENT_INDEX, elemIndex);
+                result = compare((JsonObject) exp, (JsonObject) act).newBuilder().setMatchingIndex(bestMatchIndex.get()).setElementIndex(elemIndex);
             }
-            if (status.getString(STATUS).equals(MATCH_FAIL)) {
-                status.put(MATCHING_INDEX, bestMatchIndex.get()).put(EXPECTED, exp).put(ACTUAL, act).put(DIFFERENCE, status.getJsonObject(DIFFERENCE));
+            if (result.getMatchingStatus() == MatchingStatus.F) {
+                result.setMatchingIndex(bestMatchIndex.get()).setExpectedValue(exp).setActualValue(act).setDifference(result.getDifference());
             }
-            return status;
+            return result.create();
         }).collect(Collectors.toList());
     }
 
-    public JsonObject compare(JsonObject exp, JsonObject act) {
+    public MatchingResult compare(JsonObject exp, JsonObject act) {
+        MatchingResult.Builder finalStatusObj = new MatchingResult.Builder().setMatchingStatus(MatchingStatus.P);
         if (exp == null && act == null) {
             LOGGER.info("Either obj to match or actual is null");
-            return new JsonObject().put(STATUS, MATCH_PASS).put(COUNT, NEG_INFINITY);
+            return finalStatusObj.setMatchingCount(NEG_INFINITY).create();
         } else if (exp == null || act == null) {
-            return new JsonObject().put(STATUS, MATCH_FAIL).put(ACTUAL, act).put(EXPECTED, exp);
+            return finalStatusObj.setMatchingStatus(MatchingStatus.F).setActualValue(act).setExpectedValue(exp).create();
         }
-        AtomicInteger
-                matchingCount = new AtomicInteger(0);
-        JsonObject finalStatusObj = new JsonObject().put(STATUS, MATCH_PASS).put(COUNT, NEG_INFINITY);
-        JsonObject diff = new
-                JsonObject();
-        finalStatusObj.put(DIFFERENCE, diff);
+        AtomicInteger matchingCount = new AtomicInteger(0);
+        Map<String, Object> diffObj = new HashMap<>();
+        finalStatusObj.setMatchingCount(NEG_INFINITY).setDifference(diffObj);
+
         exp.iterator().forEachRemaining(item -> {
             String attr = item.getKey();
             Object expVal = item.getValue();
             Object actVal = act.getValue(attr);
-            JsonObject internalDiff = new JsonObject().put(STATUS, MATCH_PASS);
-            diff.put(attr, internalDiff);
+//            JsonObject internalDiff = new JsonObject().put(STATUS, MATCH_PASS);
+            Map<String, Object> internalDiffObj = new HashMap<>();
+            internalDiffObj.put(STATUS, MATCH_PASS);
+            diffObj.put(attr, internalDiffObj);
             if (expVal == null && actVal == null) {
                 matchingCount.set(matchingCount.get() + 1);
             } else if (expVal == null || actVal == null) {
-                internalDiff.put(STATUS, MATCH_FAIL).put(EXPECTED, expVal).put(ACTUAL, actVal);
-                finalStatusObj.put(STATUS, MATCH_FAIL);
+                internalDiffObj.put(STATUS, MATCH_FAIL);
+                internalDiffObj.put(EXPECTED, expVal);
+                internalDiffObj.put(ACTUAL, actVal);
+                finalStatusObj.setMatchingStatus(MatchingStatus.F);
             } else if (isPrimitive(expVal) && isPrimitive(actVal)) {
                 boolean isMatching = expVal.equals(actVal);
                 matchingCount.set(matchingCount.get() + (isMatching ? 1 : 0));
                 if (!isMatching) {
-                    internalDiff.put(STATUS, MATCH_FAIL).put(EXPECTED, expVal).put(ACTUAL, actVal);
-                    finalStatusObj.put(STATUS, MATCH_FAIL);
+                    internalDiffObj.put(STATUS, MATCH_FAIL);
+                    internalDiffObj.put(EXPECTED, expVal);
+                    internalDiffObj.put(ACTUAL, actVal);
+                    finalStatusObj.setMatchingStatus(MatchingStatus.F);
                 }
             } else if (expVal instanceof JsonObject && actVal instanceof JsonObject) {
-                JsonObject status = compare((JsonObject) expVal, (JsonObject) actVal);
-                if (status.getString(STATUS).equals(MATCH_PASS)) {
+                MatchingResult result = compare((JsonObject) expVal, (JsonObject) actVal);
+                if (result.getStatus() == MatchingStatus.P) {
                     matchingCount.set(matchingCount.get() + 1);
                 } else {
-                    internalDiff.put(STATUS, MATCH_FAIL).put(EXPECTED, expVal).put(ACTUAL, actVal).put(DIFFERENCE, status.getJsonObject(DIFFERENCE));
-                    finalStatusObj.put(STATUS, MATCH_FAIL);
+                    internalDiffObj.put(STATUS, MATCH_FAIL);
+                    internalDiffObj.put(EXPECTED, expVal);
+                    internalDiffObj.put(ACTUAL, actVal);
+                    internalDiffObj.put(DIFFERENCE, result.getDiff());
+                    finalStatusObj.setMatchingStatus(MatchingStatus.F);
                 }
             } else if (expVal instanceof JsonArray && actVal instanceof JsonArray) {
                 JsonArray expValArray = (JsonArray) expVal;
                 JsonArray actValArray = (JsonArray) actVal;
-                JsonObject status = compare(expValArray, actValArray);
-                if (status.getString(STATUS).equals(MATCH_PASS)) {
+                MatchingResult result = compare(expValArray, actValArray);
+                if (result.getStatus() == MatchingStatus.P) {
                     matchingCount.set(matchingCount.get() + 1);
                 } else {
-                    internalDiff.put(STATUS, MATCH_FAIL).put(EXPECTED, expVal).put(ACTUAL, actVal).put(DIFFERENCE, status.getJsonObject(DIFFERENCE));
-                    finalStatusObj.put(STATUS, MATCH_FAIL);
+                    internalDiffObj.put(STATUS, MATCH_FAIL);
+                    internalDiffObj.put(EXPECTED, expVal);
+                    internalDiffObj.put(ACTUAL, actVal);
+                    internalDiffObj.put(DIFFERENCE, result.getDiff());
+                    finalStatusObj.setMatchingStatus(MatchingStatus.F);
                 }
             }
         });
-        if (finalStatusObj.getString(STATUS).equals(MATCH_FAIL)) {
-            finalStatusObj.put(STATUS, MATCH_FAIL).put(ACTUAL, act).put(EXPECTED, exp).put(COUNT, matchingCount.get());
+        if (finalStatusObj.getMatchingStatus() == MatchingStatus.F) {
+            finalStatusObj.setActualValue(act).setExpectedValue(exp).setMatchingCount(matchingCount.get());
         }
-        return finalStatusObj;
+        return finalStatusObj.create();
     }
 
     private boolean isPrimitive(Object o) {

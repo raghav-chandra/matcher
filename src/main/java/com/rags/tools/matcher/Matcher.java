@@ -16,7 +16,7 @@ public interface Matcher {
      * @param actual   Actual Json Array
      * @return Comparison results wrapped around a Json Object.
      */
-    JsonObject compare(JsonArray expected, JsonArray actual);
+    MatchingResult compare(JsonArray expected, JsonArray actual);
 
     /**
      * Compares two Json Object. Json Objects are matched based on their attributes.
@@ -25,5 +25,5 @@ public interface Matcher {
      * @param actual   Json Object 2
      * @return Comparison results wrapped around a Json Object.
      */
-    JsonObject compare(JsonObject expected, JsonObject actual);
+    MatchingResult compare(JsonObject expected, JsonObject actual);
 }
