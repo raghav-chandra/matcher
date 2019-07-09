@@ -22,15 +22,11 @@ public class JsonMatcher implements Matcher {
     private static final int NEG_INFINITY = Integer.MIN_VALUE;
     private static final String MATCH_PASS = "P";
     private static final String MATCH_FAIL = "F";
-    private static final String MATCH_NOT_EXISTS = "NE";
 
     private static final String STATUS = "status";
     private static final String EXPECTED = "exp";
     private static final String ACTUAL = "act";
     private static final String DIFFERENCE = "diff";
-    private static final String ELEMENT_INDEX = "elemIndex";
-    private static final String MATCHING_INDEX = "matIndex";
-    private static final String COUNT = "count";
 
     @Override
     public MatchingResult compare(JsonArray expected, JsonArray actual) {
@@ -92,7 +88,7 @@ public class JsonMatcher implements Matcher {
 
     private MatchingResult findBestMatchedItemAndPopulateMatrix(List<MatchingResult> allMatches, boolean[][] matrix) {
         List<MatchingResult> sorted = allMatches.stream().sorted(Comparator.comparingInt(MatchingResult::getCount)).collect(Collectors.toList());
-        MatchingResult matchedObj = sorted.stream().filter(obj -> !matrix[obj.getElemIndex()][obj.getMatIndex()]).findFirst().orElse(null);
+        MatchingResult matchedObj = sorted.stream().filter(obj -> obj.getElemIndex() != null && obj.getMatIndex() != null && !matrix[obj.getElemIndex()][obj.getMatIndex()]).findFirst().orElse(null);
         if (matchedObj != null) {
             blockActualColumn(matrix, matchedObj);
         } else {
@@ -105,7 +101,15 @@ public class JsonMatcher implements Matcher {
         if (exp == null || array == null) {
             LOGGER.info("Either obj to match or array is null");
             return new LinkedList<>();
+        } else if (array.isEmpty()) {
+            //If Actual array is blank, all elemnts from expected are not matching
+            return Collections.singletonList(new MatchingResult.Builder()
+                    .setMatchingStatus(MatchingStatus.F)
+                    .setElementIndex(elemIndex)
+                    .setExpectedValue(exp)
+                    .create());
         }
+
         AtomicInteger bestMatchIndex = new AtomicInteger(-1);
         return array.stream().map(act -> {
             bestMatchIndex.set(bestMatchIndex.get() + 1);
