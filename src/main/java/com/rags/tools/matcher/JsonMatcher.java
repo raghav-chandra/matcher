@@ -1,5 +1,6 @@
 package com.rags.tools.matcher;
 
+import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
@@ -149,12 +150,16 @@ public class JsonMatcher implements Matcher {
             Object expVal = item.getValue();
             Object actVal = act.getValue(attr);
 //            JsonObject internalDiff = new JsonObject().put(STATUS, MATCH_PASS);
+            MatchingResult.Builder internalDiff = new MatchingResult.Builder().setMatchingStatus(MatchingStatus.P);
             Map<String, Object> internalDiffObj = new HashMap<>();
             internalDiffObj.put(STATUS, MATCH_PASS);
-            diffObj.put(attr, internalDiffObj);
+            diffObj.put(attr, internalDiff);
             if (expVal == null && actVal == null) {
                 matchingCount.set(matchingCount.get() + 1);
             } else if (expVal == null || actVal == null) {
+                internalDiff.setMatchingStatus(MatchingStatus.F);
+                internalDiff.setExpectedValue(expVal);
+                internalDiff.setActualValue(actVal);
                 internalDiffObj.put(STATUS, MATCH_FAIL);
                 internalDiffObj.put(EXPECTED, expVal);
                 internalDiffObj.put(ACTUAL, actVal);
@@ -166,6 +171,10 @@ public class JsonMatcher implements Matcher {
                     internalDiffObj.put(STATUS, MATCH_FAIL);
                     internalDiffObj.put(EXPECTED, expVal);
                     internalDiffObj.put(ACTUAL, actVal);
+                    internalDiff.setMatchingStatus(MatchingStatus.F);
+                    internalDiff.setExpectedValue(expVal);
+                    internalDiff.setActualValue(actVal);
+
                     finalStatusObj.setMatchingStatus(MatchingStatus.F);
                 }
             } else if (expVal instanceof JsonObject && actVal instanceof JsonObject) {
@@ -177,6 +186,10 @@ public class JsonMatcher implements Matcher {
                     internalDiffObj.put(EXPECTED, expVal);
                     internalDiffObj.put(ACTUAL, actVal);
                     internalDiffObj.put(DIFFERENCE, result.getDiff());
+                    internalDiff.setMatchingStatus(MatchingStatus.F);
+                    internalDiff.setExpectedValue(expVal);
+                    internalDiff.setActualValue(actVal);
+                    internalDiff.setDifference(result.getDiff());
                     finalStatusObj.setMatchingStatus(MatchingStatus.F);
                 }
             } else if (expVal instanceof JsonArray && actVal instanceof JsonArray) {
@@ -190,6 +203,12 @@ public class JsonMatcher implements Matcher {
                     internalDiffObj.put(EXPECTED, expVal);
                     internalDiffObj.put(ACTUAL, actVal);
                     internalDiffObj.put(DIFFERENCE, result.getDiff());
+
+                    internalDiff.setMatchingStatus(MatchingStatus.F);
+                    internalDiff.setExpectedValue(expVal);
+                    internalDiff.setActualValue(actVal);
+                    internalDiff.setDifference(result.getDiff());
+
                     finalStatusObj.setMatchingStatus(MatchingStatus.F);
                 }
             }
