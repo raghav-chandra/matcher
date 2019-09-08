@@ -12,7 +12,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
- * Compares 2 json objects/arrays and produces comparison results in form of a Json Object
+ * Compares two Objects and produces uniform Matching results across any kind of Objects.
+ * Runs best count matching algorithm to perform matching of Arrays
  *
  * @author Raghav Chandra (raghav.yo@gmail.com)
  * @version 1.0
@@ -21,16 +22,47 @@ public class JsonMatcher implements Matcher {
     private static final Logger LOGGER = LoggerFactory.getLogger(JsonMatcher.class);
 
     private static final int NEG_INFINITY = Integer.MIN_VALUE;
-    private static final String MATCH_PASS = "P";
-    private static final String MATCH_FAIL = "F";
-
-    private static final String STATUS = "status";
-    private static final String EXPECTED = "exp";
-    private static final String ACTUAL = "act";
-    private static final String DIFFERENCE = "diff";
 
     @Override
-    public MatchingResult compare(JsonArray expected, JsonArray actual) {
+    public MatchingResult compare(Object expected, Object actual) {
+        MatchingResult.Builder result = new MatchingResult.Builder().setMatchingStatus(MatchingStatus.P);
+        if (expected == null && actual == null) {
+            return result.create();
+        } else if (expected == null || actual == null) {
+            return result
+                    .setMatchingStatus(MatchingStatus.F)
+                    .setExpectedValue(expected)
+                    .setActualValue(actual)
+                    .setMatchingIndex(-1)
+                    .create();
+        } else if (isPrimitive(expected) && isPrimitive(actual)) {
+            boolean isMatching = expected.equals(actual);
+            if (!isMatching) {
+                result.setMatchingCount(1)
+                        .setMatchingStatus(MatchingStatus.F)
+                        .setExpectedValue(expected)
+                        .setActualValue(actual);
+            }
+            return result.create();
+        }
+
+        boolean isExpList = expected instanceof List;
+        boolean isActList = actual instanceof List;
+        if (isExpList && !isActList || !isExpList && isActList) {
+            return result
+                    .setMatchingStatus(MatchingStatus.OM)
+                    .setActualValue(actual)
+                    .setExpectedValue(expected).create();
+        }
+
+        if (isExpList && isActList) {
+            return compare(Json.encodeToBuffer(expected).toJsonArray(), Json.encodeToBuffer(actual).toJsonArray());
+        }
+
+        return compare(Json.encodeToBuffer(expected).toJsonObject(), Json.encodeToBuffer(actual).toJsonObject());
+    }
+
+    private MatchingResult compare(JsonArray expected, JsonArray actual) {
         MatchingResult.Builder result = new MatchingResult.Builder().setMatchingStatus(MatchingStatus.P);
         if (expected == null && actual == null) {
             return result.create();
@@ -76,7 +108,7 @@ public class JsonMatcher implements Matcher {
         MatchingResult.Builder result = new MatchingResult.Builder()
                 .setMatchingStatus(finalStatus.get() ? MatchingStatus.P : MatchingStatus.F);
         if (!finalStatus.get()) {
-            result.setActualValue(result).setExpectedValue(expected).setDifference(diffObj);
+            result.setActualValue(result.create()).setExpectedValue(expected).setDifference(diffObj);
         }
         return result.create();
     }
@@ -133,12 +165,12 @@ public class JsonMatcher implements Matcher {
         }).collect(Collectors.toList());
     }
 
-    public MatchingResult compare(JsonObject exp, JsonObject act) {
+    private MatchingResult compare(JsonObject exp, JsonObject act) {
         MatchingResult.Builder finalStatusObj = new MatchingResult.Builder().setMatchingStatus(MatchingStatus.P);
         if (exp == null && act == null) {
-            LOGGER.info("Either obj to match or actual is null");
             return finalStatusObj.setMatchingCount(NEG_INFINITY).create();
         } else if (exp == null || act == null) {
+            LOGGER.info("Either obj to match or actual is null");
             return finalStatusObj.setMatchingStatus(MatchingStatus.F).setActualValue(act).setExpectedValue(exp).create();
         }
         AtomicInteger matchingCount = new AtomicInteger(0);
@@ -149,32 +181,21 @@ public class JsonMatcher implements Matcher {
             String attr = item.getKey();
             Object expVal = item.getValue();
             Object actVal = act.getValue(attr);
-//            JsonObject internalDiff = new JsonObject().put(STATUS, MATCH_PASS);
             MatchingResult.Builder internalDiff = new MatchingResult.Builder().setMatchingStatus(MatchingStatus.P);
-            Map<String, Object> internalDiffObj = new HashMap<>();
-            internalDiffObj.put(STATUS, MATCH_PASS);
-            diffObj.put(attr, internalDiff);
             if (expVal == null && actVal == null) {
                 matchingCount.set(matchingCount.get() + 1);
             } else if (expVal == null || actVal == null) {
                 internalDiff.setMatchingStatus(MatchingStatus.F);
                 internalDiff.setExpectedValue(expVal);
                 internalDiff.setActualValue(actVal);
-                internalDiffObj.put(STATUS, MATCH_FAIL);
-                internalDiffObj.put(EXPECTED, expVal);
-                internalDiffObj.put(ACTUAL, actVal);
                 finalStatusObj.setMatchingStatus(MatchingStatus.F);
             } else if (isPrimitive(expVal) && isPrimitive(actVal)) {
                 boolean isMatching = expVal.equals(actVal);
                 matchingCount.set(matchingCount.get() + (isMatching ? 1 : 0));
                 if (!isMatching) {
-                    internalDiffObj.put(STATUS, MATCH_FAIL);
-                    internalDiffObj.put(EXPECTED, expVal);
-                    internalDiffObj.put(ACTUAL, actVal);
                     internalDiff.setMatchingStatus(MatchingStatus.F);
                     internalDiff.setExpectedValue(expVal);
                     internalDiff.setActualValue(actVal);
-
                     finalStatusObj.setMatchingStatus(MatchingStatus.F);
                 }
             } else if (expVal instanceof JsonObject && actVal instanceof JsonObject) {
@@ -182,10 +203,6 @@ public class JsonMatcher implements Matcher {
                 if (result.getStatus() == MatchingStatus.P) {
                     matchingCount.set(matchingCount.get() + 1);
                 } else {
-                    internalDiffObj.put(STATUS, MATCH_FAIL);
-                    internalDiffObj.put(EXPECTED, expVal);
-                    internalDiffObj.put(ACTUAL, actVal);
-                    internalDiffObj.put(DIFFERENCE, result.getDiff());
                     internalDiff.setMatchingStatus(MatchingStatus.F);
                     internalDiff.setExpectedValue(expVal);
                     internalDiff.setActualValue(actVal);
@@ -199,19 +216,14 @@ public class JsonMatcher implements Matcher {
                 if (result.getStatus() == MatchingStatus.P) {
                     matchingCount.set(matchingCount.get() + 1);
                 } else {
-                    internalDiffObj.put(STATUS, MATCH_FAIL);
-                    internalDiffObj.put(EXPECTED, expVal);
-                    internalDiffObj.put(ACTUAL, actVal);
-                    internalDiffObj.put(DIFFERENCE, result.getDiff());
-
                     internalDiff.setMatchingStatus(MatchingStatus.F);
                     internalDiff.setExpectedValue(expVal);
                     internalDiff.setActualValue(actVal);
                     internalDiff.setDifference(result.getDiff());
-
                     finalStatusObj.setMatchingStatus(MatchingStatus.F);
                 }
             }
+            diffObj.put(attr, internalDiff.create());
         });
         if (finalStatusObj.getMatchingStatus() == MatchingStatus.F) {
             finalStatusObj.setActualValue(act).setExpectedValue(exp).setMatchingCount(matchingCount.get());

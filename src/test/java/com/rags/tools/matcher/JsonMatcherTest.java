@@ -47,16 +47,16 @@ public class JsonMatcherTest {
         assertEquals((Integer) 3, result.getCount());
 
         Map<String, Object> diff = result.getDiff();
-        assertEquals("P", ((Map<String, Object>) diff.get("name")).get("status"));
-        assertEquals("P", ((Map<String, Object>) diff.get("kerberos")).get("status"));
-        assertEquals("F", ((Map<String, Object>) diff.get("mobile")).get("status"));
-        assertEquals(8867987654L, ((Map<String, Object>) diff.get("mobile")).get("exp"));
-        assertEquals(9065065882L, ((Map<String, Object>) diff.get("mobile")).get("act"));
-        assertEquals("P", ((Map<String, Object>) diff.get("id")).get("status"));
+        assertEquals(MatchingStatus.P, ((MatchingResult) diff.get("name")).getStatus());
+        assertEquals(MatchingStatus.P, ((MatchingResult) diff.get("kerberos")).getStatus());
+        assertEquals(MatchingStatus.F, ((MatchingResult) diff.get("mobile")).getStatus());
+        assertEquals(8867987654L, ((MatchingResult) diff.get("mobile")).getExp());
+        assertEquals(9065065882L, ((MatchingResult) diff.get("mobile")).getAct());
+        assertEquals(MatchingStatus.P, ((MatchingResult) diff.get("id")).getStatus());
 
-        assertEquals("F", ((Map<String, Object>) diff.get("tension")).get("status"));
-        assertEquals("NO", ((Map<String, Object>) diff.get("tension")).get("exp"));
-        assertNull(((Map<String, Object>) diff.get("tension")).get("act"));
+        assertEquals(MatchingStatus.F, ((MatchingResult) diff.get("tension")).getStatus());
+        assertEquals("NO", ((MatchingResult) diff.get("tension")).getExp());
+        assertNull(((MatchingResult) diff.get("tension")).getAct());
     }
 
     @Test
@@ -86,26 +86,26 @@ public class JsonMatcherTest {
         MatchingResult result = matcher.compare(expected, actual);
 
 
-        assertEquals("F", result.getStatus().name());
+        assertEquals(MatchingStatus.F, result.getStatus());
         assertEquals(expected, result.getExp());
         assertEquals(actual, result.getAct());
         assertEquals((Integer) 4, result.getCount());
 
         Map<String, Object> diff = result.getDiff();
-        assertEquals("P", ((Map<String, Object>) diff.get("name")).get("status"));
-        assertEquals("P", ((Map<String, Object>) diff.get("kerberos")).get("status"));
-        assertEquals("P", ((Map<String, Object>) diff.get("mobile")).get("status"));
-        assertEquals("P", ((Map<String, Object>) diff.get("id")).get("status"));
+        assertEquals(MatchingStatus.P, ((MatchingResult) diff.get("name")).getStatus());
+        assertEquals(MatchingStatus.P, ((MatchingResult) diff.get("kerberos")).getStatus());
+        assertEquals(MatchingStatus.P, ((MatchingResult) diff.get("mobile")).getStatus());
+        assertEquals(MatchingStatus.P, ((MatchingResult) diff.get("id")).getStatus());
 
-        assertEquals("F", ((Map<String, Object>) diff.get("add")).get("status"));
+        assertEquals(MatchingStatus.F, ((MatchingResult) diff.get("add")).getStatus());
 
-        Map<String, Object> addDiff = (Map<String, Object>) ((Map<String, Object>) diff.get("add")).get("diff");
-        assertEquals("P", ((Map<String, Object>) addDiff.get("city")).get("status"));
-        assertEquals("P", ((Map<String, Object>) addDiff.get("state")).get("status"));
-        assertEquals("P", ((Map<String, Object>) addDiff.get("pin")).get("status"));
-        assertEquals("F", ((Map<String, Object>) addDiff.get("landmark")).get("status"));
-        assertEquals("mosque", ((Map<String, Object>) addDiff.get("landmark")).get("exp"));
-        assertEquals("temple", ((Map<String, Object>) addDiff.get("landmark")).get("act"));
+        Map<String, Object> addDiff = ((MatchingResult) diff.get("add")).getDiff();
+        assertEquals(MatchingStatus.P, ((MatchingResult) addDiff.get("city")).getStatus());
+        assertEquals(MatchingStatus.P, ((MatchingResult) addDiff.get("state")).getStatus());
+        assertEquals(MatchingStatus.P, ((MatchingResult) addDiff.get("pin")).getStatus());
+        assertEquals(MatchingStatus.F, ((MatchingResult) addDiff.get("landmark")).getStatus());
+        assertEquals("mosque", ((MatchingResult) addDiff.get("landmark")).getExp());
+        assertEquals("temple", ((MatchingResult) addDiff.get("landmark")).getAct());
     }
 
 
@@ -122,26 +122,44 @@ public class JsonMatcherTest {
 
         assertNotNull(result);
 
+        assertEquals(MatchingStatus.F, result.getStatus());
+        assertEquals(expected, result.getExp());
+        assertEquals(actual, result.getAct());
+        assertEquals((Integer) 1, result.getCount());
+
+        Map<String, Object> diff = result.getDiff();
+        assertEquals(MatchingStatus.P, ((MatchingResult) diff.get("name")).getStatus());
+
+        assertEquals(MatchingStatus.F, ((MatchingResult) diff.get("fakeName")).getStatus());
+        Map<String, Object> fNDiff = ((MatchingResult) diff.get("fakeName")).getDiff();
+        assertEquals(MatchingStatus.P, ((MatchingResult) fNDiff.get("0")).getStatus());
+        assertEquals(MatchingStatus.NE, ((MatchingResult) fNDiff.get("1")).getStatus());
+    }
+
+    @Test
+    public void testArrayComparisonWhenActualExpectingZeroElem() {
+        JsonObject expected = new JsonObject()
+                .put("name", "Raghav Chandra")
+                .put("fakeName", new JsonArray().add("Baba").add("Santru"));
+
+        JsonObject actual = new JsonObject()
+                .put("name", "Raghav Chandra")
+                .put("fakeName", new JsonArray());
+        MatchingResult result = matcher.compare(expected, actual);
+
+        assertNotNull(result);
+
         assertEquals("F", result.getStatus().name());
         assertEquals(expected, result.getExp());
         assertEquals(actual, result.getAct());
         assertEquals((Integer) 1, result.getCount());
 
         Map<String, Object> diff = result.getDiff();
-        assertEquals("P", ((Map<String, Object>) diff.get("name")).get("status"));
+        assertEquals(MatchingStatus.P, ((MatchingResult) diff.get("name")).getStatus());
 
-        assertEquals("F", ((Map<String, Object>) diff.get("fakeName")).get("status"));
-        Map<String, Object> fNDiff = (Map<String, Object>) ((Map<String, Object>) diff.get("fakeName")).get("diff");
-        assertEquals("P", ((Map<String, Object>) fNDiff.get("0")).get("status"));
-        assertEquals("NE", ((Map<String, Object>) fNDiff.get("1")).get("status"));
-
-
-        JsonObject actual1 = new JsonObject()
-                .put("name", "Raghav Chandra")
-                .put("fakeName", new JsonArray());
-        matcher.compare(expected, actual1);
-
-        System.out.println(result);
-
+        assertEquals(MatchingStatus.F, ((MatchingResult) diff.get("fakeName")).getStatus());
+        Map<String, Object> fNDiff = ((MatchingResult) diff.get("fakeName")).getDiff();
+        assertEquals(MatchingStatus.NE, ((MatchingResult) fNDiff.get("0")).getStatus());
+        assertEquals(MatchingStatus.NE, ((MatchingResult) fNDiff.get("1")).getStatus());
     }
 }
