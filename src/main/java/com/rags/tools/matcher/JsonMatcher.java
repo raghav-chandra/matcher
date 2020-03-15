@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
  * Runs best count matching algorithm to perform matching of Arrays
  *
  * @author Raghav Chandra (raghav.yo@gmail.com)
- * @version 1.0
+ * @version 1.1.0
  */
 public class JsonMatcher implements Matcher {
     private static final Logger LOGGER = LoggerFactory.getLogger(JsonMatcher.class);
@@ -55,7 +55,7 @@ public class JsonMatcher implements Matcher {
                     .setExpectedValue(expected).create();
         }
 
-        if (isExpList && isActList) {
+        if (isExpList) {
             return compare(Json.encodeToBuffer(expected).toJsonArray(), Json.encodeToBuffer(actual).toJsonArray());
         }
 
@@ -198,6 +198,15 @@ public class JsonMatcher implements Matcher {
                     internalDiff.setActualValue(actVal);
                     finalStatusObj.setMatchingStatus(MatchingStatus.F);
                 }
+            } else if (isComparable(expVal) && isComparable(actVal)) {
+                boolean isMatching = ((Comparable) expVal).compareTo(actVal) == 0;
+                matchingCount.set(matchingCount.get() + (isMatching ? 1 : 0));
+                if (!isMatching) {
+                    internalDiff.setMatchingStatus(MatchingStatus.F);
+                    internalDiff.setExpectedValue(expVal);
+                    internalDiff.setActualValue(actVal);
+                    finalStatusObj.setMatchingStatus(MatchingStatus.F);
+                }
             } else if (expVal instanceof JsonObject && actVal instanceof JsonObject) {
                 MatchingResult result = compare((JsonObject) expVal, (JsonObject) actVal);
                 if (result.getStatus() == MatchingStatus.P) {
@@ -234,4 +243,9 @@ public class JsonMatcher implements Matcher {
     private boolean isPrimitive(Object o) {
         return o instanceof String || o instanceof Double || o instanceof Float || o instanceof Integer || o instanceof Boolean || o instanceof Long;
     }
+
+    private boolean isComparable(Object expVal) {
+        return expVal instanceof Comparable;
+    }
+
 }
