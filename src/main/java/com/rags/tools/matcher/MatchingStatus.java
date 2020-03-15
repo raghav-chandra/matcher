@@ -5,7 +5,7 @@ package com.rags.tools.matcher;
  * @since 11-02-2019
  */
 public enum MatchingStatus {
-    P("PASS"), F("FAIL"), NE("NOT_EXISTS"), OM("OBJECT_MISMATCH");
+    P("PASS"), F("FAIL"), NE("NOT_EXISTS"), OM("OBJECT_MISMATCH"), IGN("IGNORED");
 
     private final String desc;
 

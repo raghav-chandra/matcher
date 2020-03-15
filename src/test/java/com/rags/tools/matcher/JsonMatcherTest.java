@@ -5,6 +5,7 @@ import io.vertx.core.json.JsonObject;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
@@ -22,6 +23,40 @@ public class JsonMatcherTest {
     @Before
     public void setup() {
         matcher = new JsonMatcher();
+    }
+
+    @Test
+    public void testNull() {
+        MatchingResult result = matcher.compare(null, null);
+        assertEquals(MatchingStatus.P, result.getStatus());
+    }
+
+    @Test
+    public void testOnlyOneNull() {
+        MatchingResult result = matcher.compare(null, 23);
+        assertEquals(MatchingStatus.F, result.getStatus());
+        assertEquals(23, result.getAct());
+        assertNull(result.getExp());
+    }
+
+    @Test
+    public void testPrimitiveComparison() {
+        MatchingResult result = matcher.compare("Raghav", "Chandra");
+        assertEquals(MatchingStatus.F, result.getStatus());
+        assertEquals("Raghav", result.getExp());
+        assertEquals("Chandra", result.getAct());
+    }
+
+    @Test
+    public void testComparableComparison() {
+        MatchingResult result = matcher.compare(BigDecimal.valueOf(10), BigDecimal.valueOf(11.00));
+        assertEquals(MatchingStatus.F, result.getStatus());
+    }
+
+    @Test
+    public void testMatchListVsObject() {
+        MatchingResult result = matcher.compare(new JsonObject().put("val",1), new JsonArray().add(1));
+        assertEquals(MatchingStatus.OM, result.getStatus());
     }
 
     @Test
@@ -108,6 +143,56 @@ public class JsonMatcherTest {
         assertEquals("temple", ((MatchingResult) addDiff.get("landmark")).getAct());
     }
 
+    @Test
+    public void testNestedJsonObjectComparisonWithIgnoredAttribute() {
+        JsonObject expected = new JsonObject()
+                .put("name", "Raghav Chandra")
+                .put("kerberos", "charag")
+                .put("mobile", 8867987654L)
+                .put("id", 10110)
+                .put("add", new JsonObject()
+                        .put("city", "Prayagraj")
+                        .put("state", "UP")
+                        .put("pin", 211002)
+                        .put("landmark", "mosque"));
+
+        JsonObject actual = new JsonObject()
+                .put("name", "Raghav Chandra")
+                .put("kerberos", "charag")
+                .put("mobile", 8867987654L)
+                .put("id", 10110)
+                .put("add", new JsonObject()
+                        .put("city", "Prayagraj")
+                        .put("state", "UP")
+                        .put("pin", 211003)
+                        .put("landmark", "temple"));
+
+        JsonObject ignored = new JsonObject()
+                .put("name", true)
+                .put("add", new JsonObject()
+                        .put("landmark", true));
+
+        MatchingResult result = matcher.compare(expected, actual, ignored);
+        assertEquals((Integer) 3, result.getCount());
+        assertEquals(MatchingStatus.F, result.getStatus());
+
+        Map<String, Object> diff = result.getDiff();
+        assertEquals(MatchingStatus.IGN, ((MatchingResult) diff.get("name")).getStatus());
+        assertEquals(MatchingStatus.P, ((MatchingResult) diff.get("kerberos")).getStatus());
+        assertEquals(MatchingStatus.P, ((MatchingResult) diff.get("mobile")).getStatus());
+        assertEquals(MatchingStatus.P, ((MatchingResult) diff.get("id")).getStatus());
+
+        assertEquals(MatchingStatus.F, ((MatchingResult) diff.get("add")).getStatus());
+
+        Map<String, Object> addDiff = ((MatchingResult) diff.get("add")).getDiff();
+        assertEquals(MatchingStatus.P, ((MatchingResult) addDiff.get("city")).getStatus());
+        assertEquals(MatchingStatus.P, ((MatchingResult) addDiff.get("state")).getStatus());
+        assertEquals(MatchingStatus.F, ((MatchingResult) addDiff.get("pin")).getStatus());
+        assertEquals(MatchingStatus.IGN, ((MatchingResult) addDiff.get("landmark")).getStatus());
+        assertEquals(211002, ((MatchingResult) addDiff.get("pin")).getExp());
+        assertEquals(211003, ((MatchingResult) addDiff.get("pin")).getAct());
+    }
+
 
     @Test
     public void testSimpleArrayComparison() {
@@ -161,5 +246,96 @@ public class JsonMatcherTest {
         Map<String, Object> fNDiff = ((MatchingResult) diff.get("fakeName")).getDiff();
         assertEquals(MatchingStatus.NE, ((MatchingResult) fNDiff.get("0")).getStatus());
         assertEquals(MatchingStatus.NE, ((MatchingResult) fNDiff.get("1")).getStatus());
+    }
+
+    @Test
+    public void testComplexArrayComparison() {
+        JsonObject expected = new JsonObject()
+                .put("name", "Raghav Chandra")
+                .put("fakeName", new JsonArray()
+                        .add(new JsonObject()
+                                .put("firstName", "Foo")
+                                .put("secondName", "Bar"))
+                        .add("Santru"));
+
+        JsonObject actual = new JsonObject()
+                .put("name", "Raghav Chandra")
+                .put("fakeName", new JsonArray()
+                        .add(new JsonObject()
+                                .put("firstName", "Foo")
+                                .put("secondName", "Bar23"))
+                        .add("Santru"));
+
+        MatchingResult result = matcher.compare(expected, actual);
+
+        assertNotNull(result);
+
+        assertEquals("F", result.getStatus().name());
+        assertEquals(expected, result.getExp());
+        assertEquals(actual, result.getAct());
+        assertEquals((Integer) 1, result.getCount());
+
+        Map<String, Object> diff = result.getDiff();
+        assertEquals(MatchingStatus.P, ((MatchingResult) diff.get("name")).getStatus());
+        assertEquals(MatchingStatus.F, ((MatchingResult) diff.get("fakeName")).getStatus());
+
+        Map<String, Object> fNDiff = ((MatchingResult) diff.get("fakeName")).getDiff();
+        assertEquals(MatchingStatus.P, ((MatchingResult) fNDiff.get("1")).getStatus());
+
+        assertEquals(MatchingStatus.F, ((MatchingResult) fNDiff.get("0")).getStatus());
+        Map<String, Object> fnArrDiff = ((MatchingResult) fNDiff.get("0")).getDiff();
+        assertEquals(MatchingStatus.P, ((MatchingResult) fnArrDiff.get("firstName")).getStatus());
+        assertEquals(MatchingStatus.F, ((MatchingResult) fnArrDiff.get("secondName")).getStatus());
+
+        assertEquals("Bar", ((MatchingResult) fnArrDiff.get("secondName")).getExp());
+        assertEquals("Bar23", ((MatchingResult) fnArrDiff.get("secondName")).getAct());
+    }
+
+    @Test
+    public void testComplexArrayComparisonWithIgnored() {
+        JsonObject expected = new JsonObject()
+                .put("name", "Raghav Chandra")
+                .put("fakeName", new JsonArray()
+                        .add(new JsonObject()
+                                .put("firstName", "Foo")
+                                .put("secondName", "Bar"))
+                        .add("Santru"));
+
+        JsonObject actual = new JsonObject()
+                .put("name", "Raghav Chandra")
+                .put("fakeName", new JsonArray()
+                        .add(new JsonObject()
+                                .put("firstName", "Foo")
+                                .put("secondName", "Bar23"))
+                        .add("Santru"));
+
+        JsonObject ignored = new JsonObject()
+                .put("fakeName", new JsonObject()
+                        .put("firstName", true));
+
+        MatchingResult result = matcher.compare(expected, actual, ignored);
+
+        assertNotNull(result);
+
+        assertEquals("F", result.getStatus().name());
+        assertEquals(expected, result.getExp());
+        assertEquals(actual, result.getAct());
+        assertEquals((Integer) 1, result.getCount());
+
+        Map<String, Object> diff = result.getDiff();
+        assertEquals(MatchingStatus.P, ((MatchingResult) diff.get("name")).getStatus());
+        assertEquals(MatchingStatus.F, ((MatchingResult) diff.get("fakeName")).getStatus());
+
+        Map<String, Object> fNDiff = ((MatchingResult) diff.get("fakeName")).getDiff();
+        assertEquals(MatchingStatus.P, ((MatchingResult) fNDiff.get("1")).getStatus());
+
+        assertEquals(MatchingStatus.F, ((MatchingResult) fNDiff.get("0")).getStatus());
+        Map<String, Object> fnArrDiff = ((MatchingResult) fNDiff.get("0")).getDiff();
+
+        assertEquals(MatchingStatus.IGN, ((MatchingResult) fnArrDiff.get("firstName")).getStatus());
+        assertEquals(MatchingStatus.F, ((MatchingResult) fnArrDiff.get("secondName")).getStatus());
+
+        assertEquals("Bar", ((MatchingResult) fnArrDiff.get("secondName")).getExp());
+        assertEquals("Bar23", ((MatchingResult) fnArrDiff.get("secondName")).getAct());
     }
 }
