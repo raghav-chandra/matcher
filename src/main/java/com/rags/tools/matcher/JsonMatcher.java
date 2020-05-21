@@ -25,11 +25,12 @@ public class JsonMatcher implements Matcher {
 
     @Override
     public MatchingResult compare(Object expected, Object actual) {
-        return compare(expected, actual, new JsonObject());
+        return compare(expected, actual, new HashMap<>());
     }
 
     @Override
-    public MatchingResult compare(Object expected, Object actual, JsonObject ignoreAttributes) {
+    public MatchingResult compare(Object expected, Object actual, Map<String, Object> ignored) {
+        JsonObject ignoreAttributes = JsonObject.mapFrom(ignored);
         MatchingResult.Builder result = new MatchingResult.Builder().setMatchingStatus(MatchingStatus.P);
         if (expected == null && actual == null) {
             return result.create();
@@ -96,10 +97,10 @@ public class JsonMatcher implements Matcher {
             counter.set(counter.get() + 1);
             return findBestMatchingAttrCount(exp, counter.get(), actual, ignoreAttributes);
         }).collect(Collectors.toList());
-        return calculateBestMatching(expected, actual, crossResults);
+        return calculateMaxMatchingAndMatch(expected, actual, crossResults);
     }
 
-    private MatchingResult calculateBestMatching(JsonArray expected, JsonArray actual, List<List<MatchingResult>> crossResults) {
+    private MatchingResult calculateMaxMatchingAndMatch(JsonArray expected, JsonArray actual, List<List<MatchingResult>> crossResults) {
         boolean[][] matrix = new boolean[expected.size()][actual.size()];
         Map<String, Object> diffObj = new HashMap<>();
 

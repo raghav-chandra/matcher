@@ -6,6 +6,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.math.BigDecimal;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
@@ -55,7 +57,7 @@ public class JsonMatcherTest {
 
     @Test
     public void testMatchListVsObject() {
-        MatchingResult result = matcher.compare(new JsonObject().put("val",1), new JsonArray().add(1));
+        MatchingResult result = matcher.compare(new JsonObject().put("val", 1), new JsonArray().add(1));
         assertEquals(MatchingStatus.OM, result.getStatus());
     }
 
@@ -167,10 +169,11 @@ public class JsonMatcherTest {
                         .put("pin", 211003)
                         .put("landmark", "temple"));
 
-        JsonObject ignored = new JsonObject()
-                .put("name", true)
-                .put("add", new JsonObject()
-                        .put("landmark", true));
+        Map<String, Object> internalIgnored = new HashMap<>();
+        internalIgnored.putIfAbsent("landmark", true);
+        Map<String, Object> ignored = new HashMap<>();
+        ignored.putIfAbsent("add", internalIgnored);
+        ignored.putIfAbsent("name", true);
 
         MatchingResult result = matcher.compare(expected, actual, ignored);
         assertEquals((Integer) 3, result.getCount());
@@ -309,9 +312,10 @@ public class JsonMatcherTest {
                                 .put("secondName", "Bar23"))
                         .add("Santru"));
 
-        JsonObject ignored = new JsonObject()
-                .put("fakeName", new JsonObject()
-                        .put("firstName", true));
+        Map<String, Object> internalIgnored = new HashMap<>();
+        internalIgnored.putIfAbsent("firstName", true);
+        Map<String, Object> ignored = new HashMap<>();
+        ignored.putIfAbsent("fakeName", internalIgnored);
 
         MatchingResult result = matcher.compare(expected, actual, ignored);
 
@@ -337,5 +341,17 @@ public class JsonMatcherTest {
 
         assertEquals("Bar", ((MatchingResult) fnArrDiff.get("secondName")).getExp());
         assertEquals("Bar23", ((MatchingResult) fnArrDiff.get("secondName")).getAct());
+    }
+
+    @Test
+    public void testMissingElement() {
+        List<String> expected = List.of("Raghav", "Chandra");
+        List<String> actual = List.of("Raghav");
+        MatchingResult result = new JsonMatcher().compare(expected, actual);
+        assertEquals(MatchingStatus.F, result.getStatus());
+
+        Map<String, Object> diff = result.getDiff();
+        assertEquals(MatchingStatus.P, ((MatchingResult) diff.get("0")).getStatus());
+        assertEquals(MatchingStatus.NE, ((MatchingResult) diff.get("1")).getStatus());
     }
 }
