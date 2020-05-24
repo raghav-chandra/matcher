@@ -354,4 +354,34 @@ public class JsonMatcherTest {
         assertEquals(MatchingStatus.P, ((MatchingResult) diff.get("0")).getStatus());
         assertEquals(MatchingStatus.NE, ((MatchingResult) diff.get("1")).getStatus());
     }
+
+    @Test
+    public void testComplexArrayComparisonWithBusinessKey() {
+        JsonArray expected = new JsonArray()
+                .add(new JsonObject()
+                        .put("name", "Raghav")
+                        .put("id", 1234)
+                        .put("No", 654321))
+                .add(new JsonObject()
+                        .put("name", "Chandra")
+                        .put("id", 1)
+                        .put("No", 987654321));
+
+        JsonArray actual = new JsonArray()
+                .add(new JsonObject()
+                        .put("name", "Chandra")
+                        .put("id", 1234)
+                        .put("No", 987654321));
+
+        Map<String, Object> key = new HashMap<>();
+        key.putIfAbsent("id", true);
+        MatchingResult results = new JsonMatcher().compare(expected, actual, new HashMap<>(), key);
+
+        assertEquals(MatchingStatus.F, results.getStatus());
+        Map<String, Object> diff = results.getDiff();
+
+        assertEquals(MatchingStatus.F, ((MatchingResult) diff.get("0")).getStatus());
+        assertEquals(MatchingStatus.NE, ((MatchingResult) diff.get("1")).getStatus());
+
+    }
 }

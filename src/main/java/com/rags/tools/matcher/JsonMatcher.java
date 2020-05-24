@@ -30,7 +30,14 @@ public class JsonMatcher implements Matcher {
 
     @Override
     public MatchingResult compare(Object expected, Object actual, Map<String, Object> ignored) {
-        JsonObject ignoreAttributes = JsonObject.mapFrom(ignored);
+        return compare(expected, actual, ignored, new HashMap<>());
+    }
+
+    @Override
+    public MatchingResult compare(Object expected, Object actual, Map<String, Object> ignored, Map<String, Object> businessKey) {
+        JsonObject ignoreAttributes = ignored == null ? new JsonObject() : JsonObject.mapFrom(ignored);
+        JsonObject key = businessKey == null ? new JsonObject() : JsonObject.mapFrom(businessKey);
+
         MatchingResult.Builder result = new MatchingResult.Builder().setMatchingStatus(MatchingStatus.P);
         if (expected == null && actual == null) {
             return result.create();
@@ -71,13 +78,13 @@ public class JsonMatcher implements Matcher {
         }
 
         if (isExpList) {
-            return compare(Json.encodeToBuffer(expected).toJsonArray(), Json.encodeToBuffer(actual).toJsonArray(), ignoreAttributes);
+            return compare(Json.encodeToBuffer(expected).toJsonArray(), Json.encodeToBuffer(actual).toJsonArray(), ignoreAttributes, key);
         }
 
-        return compare(Json.encodeToBuffer(expected).toJsonObject(), Json.encodeToBuffer(actual).toJsonObject(), ignoreAttributes);
+        return compare(Json.encodeToBuffer(expected).toJsonObject(), Json.encodeToBuffer(actual).toJsonObject(), ignoreAttributes, key);
     }
 
-    private MatchingResult compare(JsonArray expected, JsonArray actual, JsonObject ignoreAttributes) {
+    private MatchingResult compare(JsonArray expected, JsonArray actual, JsonObject ignoreAttributes, JsonObject businessKey) {
         MatchingResult.Builder result = new MatchingResult.Builder().setMatchingStatus(MatchingStatus.P);
         if (expected == null && actual == null) {
             return result.create();
@@ -95,12 +102,12 @@ public class JsonMatcher implements Matcher {
         AtomicInteger counter = new AtomicInteger(-1);
         List<List<MatchingResult>> crossResults = expected.stream().map(exp -> {
             counter.set(counter.get() + 1);
-            return findBestMatchingAttrCount(exp, counter.get(), actual, ignoreAttributes);
+            return findBestMatchingAttrCount(exp, counter.get(), actual, ignoreAttributes, businessKey);
         }).collect(Collectors.toList());
-        return calculateMaxMatchingAndMatch(expected, actual, crossResults);
+        return calculateMaxMatchingAndMatch(expected, actual, crossResults, businessKey);
     }
 
-    private MatchingResult calculateMaxMatchingAndMatch(JsonArray expected, JsonArray actual, List<List<MatchingResult>> crossResults) {
+    private MatchingResult calculateMaxMatchingAndMatch(JsonArray expected, JsonArray actual, List<List<MatchingResult>> crossResults, JsonObject businessKey) {
         boolean[][] matrix = new boolean[expected.size()][actual.size()];
         Map<String, Object> diffObj = new HashMap<>();
 
@@ -118,7 +125,9 @@ public class JsonMatcher implements Matcher {
             }
         });
 
-        nonMatching.forEach(obj -> diffObj.put(String.valueOf(obj.iterator().next().getElemIndex()), findBestMatchedItemAndPopulateMatrix(obj, matrix)));
+        nonMatching.sort((matchingResults1, matchingResults2) -> matchingResults2.stream().mapToInt(val -> val.getCount() == null ? 0 : val.getCount()).max().orElse(0) - matchingResults1.stream().mapToInt(val -> val.getCount() == null ? 0 : val.getCount()).max().orElse(0));
+
+        nonMatching.forEach(obj -> diffObj.put(String.valueOf(obj.iterator().next().getElemIndex()), findBestMatchedItemAndPopulateMatrix(obj, matrix, businessKey)));
 
         MatchingResult.Builder result = new MatchingResult.Builder()
                 .setMatchingStatus(finalStatus.get() ? MatchingStatus.P : MatchingStatus.F);
@@ -134,9 +143,12 @@ public class JsonMatcher implements Matcher {
         }
     }
 
-    private MatchingResult findBestMatchedItemAndPopulateMatrix(List<MatchingResult> allMatches, boolean[][] matrix) {
-        List<MatchingResult> sorted = allMatches.stream().sorted(Comparator.comparingInt(MatchingResult::getCount)).collect(Collectors.toList());
-        MatchingResult matchedObj = sorted.stream().filter(obj -> obj.getElemIndex() != null && obj.getMatIndex() != null && !matrix[obj.getElemIndex()][obj.getMatIndex()]).findFirst().orElse(null);
+    private MatchingResult findBestMatchedItemAndPopulateMatrix(List<MatchingResult> allMatches, boolean[][] matrix, JsonObject businessKey) {
+//        List<MatchingResult> sorted = allMatches.stream().sorted(Comparator.comparingInt(MatchingResult::getCount)).collect(Collectors.toList());
+
+        List<MatchingResult> matches = getMatchingObject(allMatches, businessKey);
+
+        MatchingResult matchedObj = matches.stream().filter(obj -> obj.getElemIndex() != null && obj.getMatIndex() != null && !matrix[obj.getElemIndex()][obj.getMatIndex()]).findFirst().orElse(null);
         if (matchedObj != null) {
             blockActualColumn(matrix, matchedObj);
         } else {
@@ -145,7 +157,73 @@ public class JsonMatcher implements Matcher {
         return matchedObj;
     }
 
-    private List<MatchingResult> findBestMatchingAttrCount(Object exp, int elemIndex, JsonArray array, JsonObject ignored) {
+    private List<MatchingResult> getMatchingObject(List<MatchingResult> allMatches, JsonObject businessKey) {
+        List<MatchingResult> matches = allMatches.stream().filter(match -> {
+            Object actual = match.getAct();
+            Object expected = match.getExp();
+            if (businessKey != null && !isPrimitive(actual) && !isPrimitive(expected) && !isComparable(expected) && !isComparable(actual)) {
+                boolean isExpList = expected instanceof List || expected instanceof JsonArray;
+                boolean isActList = actual instanceof List || actual instanceof JsonArray;
+                if (isExpList && isActList) {
+                    throw new RuntimeException("List of list is not supported for comparison");
+                }
+
+                JsonObject act = (JsonObject) actual;
+                JsonObject exp = (JsonObject) expected;
+
+                return isMatching(act, exp, businessKey);
+            }
+            return true;
+        }).collect(Collectors.toList());
+        return matches.stream().sorted(Comparator.comparingInt(MatchingResult::getCount)).collect(Collectors.toList());
+    }
+
+    private boolean isMatching(JsonObject act, JsonObject exp, JsonObject businessKey) {
+        if (businessKey == null) {
+            return false;
+        }
+        if (act.fieldNames().containsAll(businessKey.fieldNames()) && exp.fieldNames().containsAll(businessKey.fieldNames())) {
+            return businessKey.fieldNames().stream().allMatch(attr -> {
+                Object actVal = act.getValue(attr);
+                Object expVal = exp.getValue(attr);
+                if (isPrimitive(actVal) && isPrimitive(expVal)) {
+                    return expVal.equals(actVal);
+                } else if (isComparable(expVal) && isComparable(actVal)) {
+                    return ((Comparable) expVal).compareTo(actVal) == 0;
+                } else if (actVal instanceof JsonObject && expVal instanceof JsonObject) {
+                    if (businessKey.getValue(attr) instanceof JsonObject) {
+                        return isMatching((JsonObject) actVal, (JsonObject) expVal, (JsonObject) businessKey.getValue(attr));
+                    } else {
+                        return false;
+                    }
+                } else if (actVal instanceof JsonArray && expVal instanceof JsonArray) {
+                    if (businessKey.getValue(attr) instanceof JsonObject) {
+                        //TODO: Array matching to be implemented
+                        return isMatching((JsonArray) actVal, (JsonArray) expVal, (JsonObject) businessKey.getValue(attr));
+                    } else {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            });
+        }
+        return false;
+    }
+
+    //Nested Array check based on the Key.
+    private boolean isMatching(JsonArray actVal, JsonArray expVal, JsonObject businessKey) {
+        /*if (businessKey != null) {
+            return actVal.stream().anyMatch(act -> {
+                return expVal.stream().anyMatch(exp -> {
+                    return isMatching(act, exp, businessKey);
+                });
+            });
+        }*/
+        return false;
+    }
+
+    private List<MatchingResult> findBestMatchingAttrCount(Object exp, int elemIndex, JsonArray array, JsonObject ignored, JsonObject businessKey) {
         if (exp == null || array == null) {
             LOGGER.info("Either obj to match or array is null");
             return new LinkedList<>();
@@ -171,7 +249,7 @@ public class JsonMatcher implements Matcher {
                     result.setMatchingStatus(MatchingStatus.P).setMatchingCount(NEG_INFINITY);
                 }
             } else if (exp instanceof JsonObject && act instanceof JsonObject) {
-                result = compare((JsonObject) exp, (JsonObject) act, ignored).newBuilder().setMatchingIndex(bestMatchIndex.get()).setElementIndex(elemIndex);
+                result = compare((JsonObject) exp, (JsonObject) act, ignored, businessKey).newBuilder().setMatchingIndex(bestMatchIndex.get()).setElementIndex(elemIndex);
             }
             if (result.getMatchingStatus() == MatchingStatus.F) {
                 result.setMatchingIndex(bestMatchIndex.get()).setExpectedValue(exp).setActualValue(act).setDifference(result.getDifference());
@@ -180,7 +258,7 @@ public class JsonMatcher implements Matcher {
         }).collect(Collectors.toList());
     }
 
-    private MatchingResult compare(JsonObject exp, JsonObject act, JsonObject ignored) {
+    private MatchingResult compare(JsonObject exp, JsonObject act, JsonObject ignored, JsonObject businessKey) {
         MatchingResult.Builder finalStatusObj = new MatchingResult.Builder().setMatchingStatus(MatchingStatus.P);
         if (exp == null && act == null) {
             return finalStatusObj.setMatchingCount(NEG_INFINITY).create();
@@ -246,7 +324,12 @@ public class JsonMatcher implements Matcher {
                     ignAttributes = ignored.getJsonObject(attr);
                 }
 
-                MatchingResult result = compare((JsonObject) expVal, (JsonObject) actVal, ignAttributes);
+                JsonObject bussKey = new JsonObject();
+                if (businessKey.containsKey(attr)) {
+                    bussKey = businessKey.getJsonObject(attr);
+                }
+
+                MatchingResult result = compare((JsonObject) expVal, (JsonObject) actVal, ignAttributes, bussKey);
                 if (result.getStatus() == MatchingStatus.P) {
                     matchingCount.set(matchingCount.get() + 1);
                 } else {
@@ -262,9 +345,15 @@ public class JsonMatcher implements Matcher {
                     //TODO: check the value of attr. If its Json pass it otherwise ignore the whole
                     ignAttributes = ignored.getJsonObject(attr);
                 }
+
+                JsonObject bussKey = new JsonObject();
+                if (businessKey.containsKey(attr)) {
+                    bussKey = businessKey.getJsonObject(attr);
+                }
+
                 JsonArray expValArray = (JsonArray) expVal;
                 JsonArray actValArray = (JsonArray) actVal;
-                MatchingResult result = compare(expValArray, actValArray, ignAttributes);
+                MatchingResult result = compare(expValArray, actValArray, ignAttributes, bussKey);
                 if (result.getStatus() == MatchingStatus.P) {
                     matchingCount.set(matchingCount.get() + 1);
                 } else {
