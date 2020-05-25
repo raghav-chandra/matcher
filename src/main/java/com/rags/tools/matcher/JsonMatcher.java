@@ -51,19 +51,13 @@ public class JsonMatcher implements Matcher {
         } else if (isPrimitive(expected) && isPrimitive(actual)) {
             boolean isMatching = expected.equals(actual);
             if (!isMatching) {
-                result.setMatchingCount(1)
-                        .setMatchingStatus(MatchingStatus.F)
-                        .setExpectedValue(expected)
-                        .setActualValue(actual);
+                assignStatusAndExpAct(expected, actual, result.setMatchingCount(1), MatchingStatus.F);
             }
             return result.create();
         } else if (isComparable(expected) && isComparable(actual)) {
             boolean isMatching = ((Comparable) expected).compareTo(actual) == 0;
             if (!isMatching) {
-                result.setMatchingCount(1)
-                        .setMatchingStatus(MatchingStatus.F)
-                        .setExpectedValue(expected)
-                        .setActualValue(actual);
+                assignStatusAndExpAct(expected, actual, result.setMatchingCount(1), MatchingStatus.F);
             }
             return result.create();
         }
@@ -178,6 +172,7 @@ public class JsonMatcher implements Matcher {
         return matches.stream().sorted(Comparator.comparingInt(MatchingResult::getCount)).collect(Collectors.toList());
     }
 
+    //Matches based on the Key
     private boolean isMatching(JsonObject act, JsonObject exp, JsonObject businessKey) {
         if (businessKey == null) {
             return false;
@@ -252,7 +247,7 @@ public class JsonMatcher implements Matcher {
                 result = compare((JsonObject) exp, (JsonObject) act, ignored, businessKey).newBuilder().setMatchingIndex(bestMatchIndex.get()).setElementIndex(elemIndex);
             }
             if (result.getMatchingStatus() == MatchingStatus.F) {
-                result.setMatchingIndex(bestMatchIndex.get()).setExpectedValue(exp).setActualValue(act).setDifference(result.getDifference());
+                failMatchingStatus(exp, act, result.setMatchingIndex(bestMatchIndex.get()), result.getDifference());
             }
             return result.create();
         }).collect(Collectors.toList());
@@ -278,41 +273,33 @@ public class JsonMatcher implements Matcher {
             if (expVal == null && actVal == null) {
                 matchingCount.set(matchingCount.get() + 1);
             } else if (expVal == null || actVal == null) {
+                assignStatusAndExpAct(expVal, actVal, internalDiff, MatchingStatus.P);
                 if (ignored.containsKey(attr)) {
                     internalDiff.setMatchingStatus(MatchingStatus.IGN);
                 } else {
                     internalDiff.setMatchingStatus(MatchingStatus.F);
                     finalStatusObj.setMatchingStatus(MatchingStatus.F);
                 }
-                internalDiff.setExpectedValue(expVal);
-                internalDiff.setActualValue(actVal);
+
             } else if (isPrimitive(expVal) && isPrimitive(actVal)) {
                 if (ignored.containsKey(attr)) {
-                    internalDiff.setMatchingStatus(MatchingStatus.IGN);
-                    internalDiff.setExpectedValue(expVal);
-                    internalDiff.setActualValue(actVal);
+                    assignStatusAndExpAct(expVal, actVal, internalDiff, MatchingStatus.IGN);
                 } else {
                     boolean isMatching = expVal.equals(actVal);
                     matchingCount.set(matchingCount.get() + (isMatching ? 1 : 0));
                     if (!isMatching) {
-                        internalDiff.setMatchingStatus(MatchingStatus.F);
-                        internalDiff.setExpectedValue(expVal);
-                        internalDiff.setActualValue(actVal);
+                        assignStatusAndExpAct(expVal, actVal, internalDiff, MatchingStatus.F);
                         finalStatusObj.setMatchingStatus(MatchingStatus.F);
                     }
                 }
             } else if (isComparable(expVal) && isComparable(actVal)) {
                 if (ignored.containsKey(attr)) {
-                    internalDiff.setMatchingStatus(MatchingStatus.IGN);
-                    internalDiff.setExpectedValue(expVal);
-                    internalDiff.setActualValue(actVal);
+                    assignStatusAndExpAct(expVal, actVal, internalDiff, MatchingStatus.IGN);
                 } else {
                     boolean isMatching = ((Comparable) expVal).compareTo(actVal) == 0;
                     matchingCount.set(matchingCount.get() + (isMatching ? 1 : 0));
                     if (!isMatching) {
-                        internalDiff.setMatchingStatus(MatchingStatus.F);
-                        internalDiff.setExpectedValue(expVal);
-                        internalDiff.setActualValue(actVal);
+                        assignStatusAndExpAct(expVal, actVal, internalDiff, MatchingStatus.F);
                         finalStatusObj.setMatchingStatus(MatchingStatus.F);
                     }
                 }
@@ -333,10 +320,7 @@ public class JsonMatcher implements Matcher {
                 if (result.getStatus() == MatchingStatus.P) {
                     matchingCount.set(matchingCount.get() + 1);
                 } else {
-                    internalDiff.setMatchingStatus(MatchingStatus.F);
-                    internalDiff.setExpectedValue(expVal);
-                    internalDiff.setActualValue(actVal);
-                    internalDiff.setDifference(result.getDiff());
+                    failMatchingStatus(expVal, actVal, internalDiff.setMatchingStatus(MatchingStatus.F), result.getDiff());
                     finalStatusObj.setMatchingStatus(MatchingStatus.F);
                 }
             } else if (expVal instanceof JsonArray && actVal instanceof JsonArray) {
@@ -357,10 +341,7 @@ public class JsonMatcher implements Matcher {
                 if (result.getStatus() == MatchingStatus.P) {
                     matchingCount.set(matchingCount.get() + 1);
                 } else {
-                    internalDiff.setMatchingStatus(MatchingStatus.F);
-                    internalDiff.setExpectedValue(expVal);
-                    internalDiff.setActualValue(actVal);
-                    internalDiff.setDifference(result.getDiff());
+                    failMatchingStatus(expVal, actVal, internalDiff.setMatchingStatus(MatchingStatus.F), result.getDiff());
                     finalStatusObj.setMatchingStatus(MatchingStatus.F);
                 }
             }
@@ -371,6 +352,14 @@ public class JsonMatcher implements Matcher {
             finalStatusObj.setActualValue(act).setExpectedValue(exp).setMatchingCount(matchingCount.get());
         }
         return finalStatusObj.create();
+    }
+
+    private void assignStatusAndExpAct(Object expVal, Object actVal, MatchingResult.Builder diff, MatchingStatus status) {
+        diff.setMatchingStatus(status).setExpectedValue(expVal).setActualValue(actVal);
+    }
+
+    private void failMatchingStatus(Object expVal, Object actVal, MatchingResult.Builder builder, Map<String, Object> diff) {
+        builder.setExpectedValue(expVal).setActualValue(actVal).setDifference(diff);
     }
 
     private boolean isPrimitive(Object o) {
