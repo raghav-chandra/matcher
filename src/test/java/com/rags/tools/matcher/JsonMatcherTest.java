@@ -388,34 +388,92 @@ public class JsonMatcherTest {
     @Test
     public void testNestedObjectComparisonWithBusinessKey() {
         JsonObject expected = new JsonObject()
-                .put("firstName", new JsonObject()
-                        .put("name", "Raghav")
-                        .put("id", 1234)
-                        .put("No", 51951))
-                .put("secondName", new JsonObject()
-                        .put("name", "Chandra")
-                        .put("id", 1)
-                        .put("No", 987654321));
+                .put("firstName", new JsonObject().put("name", "Raghav").put("id", 1234).put("No", 51951))
+                .put("secondName", new JsonObject().put("name", "Chandra").put("id", 1).put("No", 987654321));
 
         JsonObject actual = new JsonObject()
-                .put("firstName", new JsonObject()
-                        .put("name", "Raghav")
-                        .put("id", 1234)
-                        .put("No", 654321))
-                .put("secondName", new JsonObject()
-                        .put("name", "Chandra")
-                        .put("id", 5)
-                        .put("No", 987654321));
+                .put("firstName", new JsonObject().put("name", "Raghav").put("id", 1234).put("No", 654321))
+                .put("secondName", new JsonObject().put("name", "Chandra").put("id", 5).put("No", 987654321));
 
         JsonObject businessKey = new JsonObject()
-                .put("firstName", new JsonObject()
-                        .put("id", true))
-                .put("secondName", new JsonObject()
-                        .put("id", true));
+                .put("firstName", new JsonObject().put("id", true))
+                .put("secondName", new JsonObject().put("id", true));
 
         MatchingResult results = new JsonMatcher().compare(expected, actual, new HashMap<>(), businessKey.getMap());
 
-        //TODO: Should return NOT exists as Second Name Key is not matching
-        assertEquals(MatchingStatus.PK, results.getStatus());
+        assertEquals(MatchingStatus.NE, results.getStatus());
+    }
+
+    @Test
+    public void testArrayWithNestedObjectComparisonWithBusinessKey() {
+        JsonObject expected1 = new JsonObject()
+                .put("firstName", new JsonObject().put("name", "Raghav").put("id", 1234).put("No", 51951))
+                .put("secondName", new JsonObject().put("name", "Chandra").put("id", 1).put("No", 987654321));
+
+        JsonObject expected2 = new JsonObject()
+                .put("firstName", new JsonObject().put("name", "Raghav").put("id", 1234).put("No", 654321))
+                .put("secondName", new JsonObject().put("name", "Chandra").put("id", 5).put("No", 987654321));
+
+        JsonObject actual1 = new JsonObject()
+                .put("firstName", new JsonObject().put("name", "Raghav").put("id", 1234).put("No", 51951))
+                .put("secondName", new JsonObject().put("name", "Chandra").put("id", 1).put("No", 987654321));
+
+        JsonObject actual2 = new JsonObject()
+                .put("firstName", new JsonObject().put("name", "Raghav").put("id", 1234).put("No", 654321))
+                .put("secondName", new JsonObject().put("name", "Chandra").put("id", 90).put("No", 987654321));
+
+        JsonArray expected = new JsonArray().add(expected1).add(expected2);
+        JsonArray actual = new JsonArray().add(actual1).add(actual2);
+
+        JsonObject businessKey = new JsonObject()
+                .put("firstName", new JsonObject().put("id", true))
+                .put("secondName", new JsonObject().put("id", true));
+
+        MatchingResult results = new JsonMatcher().compare(expected, actual, new HashMap<>(), businessKey.getMap());
+
+        assertEquals(MatchingStatus.F, results.getStatus());
+
+        assertEquals(MatchingStatus.P, results.getDiff().get("0").getStatus());
+        assertEquals(MatchingStatus.NE, results.getDiff().get("1").getStatus());
+    }
+
+    @Test
+    public void testKeyWithIgnored() {
+        JsonObject expected = new JsonObject()
+                .put("firstName", new JsonObject().put("name", "Raghav").put("id", 1234).put("No", 51951))
+                .put("secondName", new JsonObject().put("name", "Chandra").put("id", 1).put("No", 987654321));
+
+        JsonObject actual = new JsonObject()
+                .put("firstName", new JsonObject().put("name", "Raghav").put("id", 1234).put("No", 654321))
+                .put("secondName", new JsonObject().put("name", "Chandra").put("id", 5).put("No", 987654321));
+
+        JsonObject businessKey = new JsonObject()
+                .put("firstName", new JsonObject().put("id", true))
+                .put("secondName", new JsonObject().put("id", true));
+
+        JsonObject ignored = new JsonObject().put("secondName", true);
+
+       MatchingResult result =  new JsonMatcher().compare(expected, actual, ignored.getMap(), businessKey.getMap());
+       assertEquals(MatchingStatus.P, result.getStatus());
+    }
+
+    @Test(expected = RuntimeException.class)
+    public void testFailWhenKeyIsIgnored() {
+        JsonObject expected = new JsonObject()
+                .put("firstName", new JsonObject().put("name", "Raghav").put("id", 1234).put("No", 51951))
+                .put("secondName", new JsonObject().put("name", "Chandra").put("id", 1).put("No", 987654321));
+
+        JsonObject actual = new JsonObject()
+                .put("firstName", new JsonObject().put("name", "Raghav").put("id", 1234).put("No", 654321))
+                .put("secondName", new JsonObject().put("name", "Chandra").put("id", 5).put("No", 987654321));
+
+        JsonObject businessKey = new JsonObject()
+                .put("firstName", new JsonObject().put("id", true))
+                .put("secondName", new JsonObject().put("id", true));
+
+        JsonObject ignored = new JsonObject()
+                .put("firstName", new JsonObject().put("id", true));
+
+        new JsonMatcher().compare(expected, actual, ignored.getMap(), businessKey.getMap());
     }
 }

@@ -38,6 +38,8 @@ public class JsonMatcher implements Matcher {
 
         JsonObject ignoreAttributes = validate(ignored);
         JsonObject key = validate(businessKey);
+        //Key and Ignored shouldn't be same at any level.
+        validateKeyAndIgnored(ignoreAttributes, key);
 
         MatchingResult.Builder result = createStatus(MatchingStatus.P);
         if (expected == null && actual == null) {
@@ -77,6 +79,18 @@ public class JsonMatcher implements Matcher {
         }
 
         return compare(Json.encodeToBuffer(expected).toJsonObject(), Json.encodeToBuffer(actual).toJsonObject(), ignoreAttributes, key);
+    }
+
+    private void validateKeyAndIgnored(JsonObject ignoreAttributes, JsonObject key) {
+        for (String attr : key.fieldNames()) {
+            if (ignoreAttributes.containsKey(attr)) {
+                if (ignoreAttributes.getValue(attr) instanceof JsonObject && key.getValue(attr) instanceof JsonObject) {
+                    validateKeyAndIgnored((JsonObject) ignoreAttributes.getValue(attr), (JsonObject) key.getValue(attr));
+                } else if (!(ignoreAttributes.getValue(attr) instanceof JsonObject) && !(key.getValue(attr) instanceof JsonObject)) {
+                    throw new RuntimeException("Ignored attribute and Key can not be same.");
+                }
+            }
+        }
     }
 
     private MatchingResult.Builder createStatus(MatchingStatus p) {
@@ -151,8 +165,6 @@ public class JsonMatcher implements Matcher {
             return sort(r1, r2);
         });
 
-//        nonMatching.sort((r1, r2) -> r2.stream().mapToInt(val -> val.getCount() == null ? 0 : val.getCount()).max().orElse(0) - r1.stream().mapToInt(val -> val.getCount() == null ? 0 : val.getCount()).max().orElse(0));
-
         nonMatching.forEach(obj -> diffObj.put(String.valueOf(obj.iterator().next().getElemIndex()), findBestMatchedItemAndPopulateMatrix(obj, matrix)));
 
         MatchingResult.Builder result = createStatus(finalStatus.get() ? MatchingStatus.P : MatchingStatus.F);
@@ -169,7 +181,6 @@ public class JsonMatcher implements Matcher {
     }
 
     private MatchingResult findBestMatchedItemAndPopulateMatrix(List<MatchingResult> allMatches, boolean[][] matrix) {
-
         //Sort to make sure that BusinessKey matches are prioritized over non business Keys matches
         allMatches.sort(this::sort);
 
@@ -188,73 +199,6 @@ public class JsonMatcher implements Matcher {
                 ? -1 : r1.isOnlyKeyMatching() && r2.isOnlyKeyMatching() && r1.getCount() != null && r1.getCount().equals(r2.getCount())
                 ? 0 : r2.isOnlyKeyMatching() && !r1.isOnlyKeyMatching()
                 ? 1 : r1.getCount() != null && r2.getCount() != null ? r1.getCount() - r2.getCount() : 0;
-    }
-
-/*    private List<MatchingResult> getMatchingObject(List<MatchingResult> allMatches, JsonObject businessKey) {
-        List<MatchingResult> matches = allMatches.stream().filter(match -> {
-            Object actual = match.getAct();
-            Object expected = match.getExp();
-            if (businessKey != null && !isPrimitive(actual) && !isPrimitive(expected) && !isComparable(expected) && !isComparable(actual)) {
-                boolean isExpList = expected instanceof List || expected instanceof JsonArray;
-                boolean isActList = actual instanceof List || actual instanceof JsonArray;
-                if (isExpList && isActList) {
-                    throw new RuntimeException("List of list is not supported for comparison");
-                }
-
-                JsonObject act = (JsonObject) actual;
-                JsonObject exp = (JsonObject) expected;
-
-                return isMatching(act, exp, businessKey);
-            }
-            return true;
-        }).collect(Collectors.toList());
-        return matches.stream().sorted(Comparator.comparingInt(MatchingResult::getCount)).collect(Collectors.toList());
-    }*/
-
-    //Matches based on the Key
-    private boolean isMatching(JsonObject act, JsonObject exp, JsonObject businessKey) {
-        if (businessKey == null) {
-            return false;
-        }
-        if (act.fieldNames().containsAll(businessKey.fieldNames()) && exp.fieldNames().containsAll(businessKey.fieldNames())) {
-            return businessKey.fieldNames().stream().allMatch(attr -> {
-                Object actVal = act.getValue(attr);
-                Object expVal = exp.getValue(attr);
-                if (isPrimitive(actVal) && isPrimitive(expVal)) {
-                    return expVal.equals(actVal);
-                } else if (isComparable(expVal) && isComparable(actVal)) {
-                    return ((Comparable) expVal).compareTo(actVal) == 0;
-                } else if (actVal instanceof JsonObject && expVal instanceof JsonObject) {
-                    if (businessKey.getValue(attr) instanceof JsonObject) {
-                        return isMatching((JsonObject) actVal, (JsonObject) expVal, (JsonObject) businessKey.getValue(attr));
-                    } else {
-                        return false;
-                    }
-                } else if (actVal instanceof JsonArray && expVal instanceof JsonArray) {
-                    if (businessKey.getValue(attr) instanceof JsonObject) {
-                        //TODO: Array matching to be implemented
-                        return isMatching((JsonArray) actVal, (JsonArray) expVal, (JsonObject) businessKey.getValue(attr));
-                    } else {
-                        return false;
-                    }
-                } else {
-                    return false;
-                }
-            });
-        }
-        return false;
-    }
-
-    //Nested Array check based on the Key.
-    private boolean isMatching(JsonArray actVal, JsonArray expVal, JsonObject businessKey) {
-        /*if (businessKey != null) {
-            return actVal.stream().anyMatch(act -> {
-                return expVal.stream().anyMatch(exp -> {
-                    return isMatching(act, exp, businessKey);
-                });
-            });
-        }*/
-        return false;
     }
 
     private List<MatchingResult> findBestMatchingAttrCount(Object exp, int elemIndex, JsonArray array, JsonObject ignored, JsonObject businessKey) {
@@ -350,39 +294,50 @@ public class JsonMatcher implements Matcher {
                     }
                 }
             } else if (expVal instanceof JsonObject && actVal instanceof JsonObject) {
-                MatchingResult result = compare((JsonObject) expVal, (JsonObject) actVal,
-                        ignoreAttr ? ignored.getJsonObject(attr) : new JsonObject(),
-                        keyComparison ? businessKey.getJsonObject(attr) : new JsonObject());
-                if (result.isAllMatching() || result.isOnlyKeyMatching()) {
-                    matchingCount.set(matchingCount.get() + 1);
+                if (ignoreAttr && (ignored.getValue(attr) instanceof Boolean) && ignored.getBoolean(attr)) {
+                    assignStatusAndExpAct(expVal, actVal, internalDiff, MatchingStatus.IGN);
                 } else {
-                    failMatchingStatus(expVal, actVal, internalDiff.setMatchingStatus(result.getStatus()), result.getDiff());
-                    finalStatusObj.setMatchingStatus(result.getStatus());
+                    MatchingResult result = compare((JsonObject) expVal, (JsonObject) actVal,
+                            ignoreAttr && ignored.getValue(attr) instanceof JsonObject ? ignored.getJsonObject(attr) : new JsonObject(),
+                            keyComparison ? businessKey.getJsonObject(attr) : new JsonObject());
+                    if (result.isAllMatching() || result.isOnlyKeyMatching()) {
+                        matchingCount.set(matchingCount.get() + 1);
+                    } else {
+                        failMatchingStatus(expVal, actVal, internalDiff.setMatchingStatus(result.getStatus()), result.getDiff());
+                        finalStatusObj.setMatchingStatus(result.getStatus());
+                    }
                 }
             } else if (expVal instanceof JsonArray && actVal instanceof JsonArray) {
-                JsonArray expValArray = (JsonArray) expVal;
-                JsonArray actValArray = (JsonArray) actVal;
-                MatchingResult result = compare(expValArray, actValArray,
-                        ignoreAttr ? ignored.getJsonObject(attr) : new JsonObject(),
-                        keyComparison ? businessKey.getJsonObject(attr) : new JsonObject());
-                if (result.getStatus() == MatchingStatus.P) {
-                    matchingCount.set(matchingCount.get() + 1);
+
+                if (ignoreAttr && (ignored.getValue(attr) instanceof Boolean) && ignored.getBoolean(attr)) {
+                    assignStatusAndExpAct(expVal, actVal, internalDiff, MatchingStatus.IGN);
                 } else {
-                    failMatchingStatus(expVal, actVal, internalDiff.setMatchingStatus(result.getStatus()), result.getDiff());
-                    finalStatusObj.setMatchingStatus(result.getStatus());
+                    JsonArray expValArray = (JsonArray) expVal;
+                    JsonArray actValArray = (JsonArray) actVal;
+                    MatchingResult result = compare(expValArray, actValArray,
+                            ignoreAttr && ignored.getValue(attr) instanceof JsonObject ? ignored.getJsonObject(attr) : new JsonObject(),
+                            keyComparison ? businessKey.getJsonObject(attr) : new JsonObject());
+                    if (result.getStatus() == MatchingStatus.P) {
+                        matchingCount.set(matchingCount.get() + 1);
+                    } else {
+                        failMatchingStatus(expVal, actVal, internalDiff.setMatchingStatus(result.getStatus()), result.getDiff());
+                        finalStatusObj.setMatchingStatus(result.getStatus());
+                    }
                 }
             }
 
             diffObj.put(attr, internalDiff.create());
         });
 
-        //TODO: IN case of nested JSON if Key is not matching in nesting object, mark it NE
         if (!finalStatusObj.isPassing()) {
             List<MatchingResult> keyMatches = finalStatusObj.getDifference().values().stream().filter(res -> res.getAlgo() == MatchingAlgo.K).collect(Collectors.toList());
             if (!businessKey.fieldNames().isEmpty()
-                    && exp.fieldNames().containsAll(businessKey.fieldNames())
-                    && !keyMatches.isEmpty() && keyMatches.stream().allMatch(MatchingResult::isAllMatching)) {
-                finalStatusObj.setMatchingStatus(MatchingStatus.PK);
+                    && exp.fieldNames().containsAll(businessKey.fieldNames())) {
+                if (!keyMatches.isEmpty() && keyMatches.stream().allMatch(MatchingResult::isAllMatching)) {
+                    finalStatusObj.setMatchingStatus(MatchingStatus.PK);
+                } else {
+                    finalStatusObj.setMatchingStatus(MatchingStatus.NE);
+                }
             }
             finalStatusObj.setActualValue(act).setExpectedValue(exp).setMatchingCount(matchingCount.get());
         }
@@ -405,5 +360,4 @@ public class JsonMatcher implements Matcher {
     private boolean isComparable(Object expVal) {
         return expVal instanceof Comparable;
     }
-
 }
