@@ -13,11 +13,12 @@ public class MatchingResult {
     private final Integer matIndex;
     private final Integer elemIndex;
     private final Integer count;
-    private final Map<String, Object> diff;
+    private final Map<String, MatchingResult> diff;
     private final Object exp;
     private final Object act;
+    private MatchingAlgo algo;
 
-    public MatchingResult(MatchingStatus status, Map<String, Object> diff, Object act, Object exp, Integer count, Integer matIndex, Integer elemIndex) {
+    public MatchingResult(MatchingStatus status, Map<String, MatchingResult> diff, Object act, Object exp, Integer count, Integer matIndex, Integer elemIndex) {
         this.status = status;
         this.diff = diff;
         this.exp = exp;
@@ -39,7 +40,7 @@ public class MatchingResult {
         return elemIndex;
     }
 
-    public Map<String, Object> getDiff() {
+    public Map<String, MatchingResult> getDiff() {
         return diff;
     }
 
@@ -54,6 +55,23 @@ public class MatchingResult {
     public Integer getCount() {
         return count;
     }
+
+    public boolean isAllMatching() {
+        return status == MatchingStatus.P;
+    }
+
+    public boolean isOnlyKeyMatching() {
+        return status == MatchingStatus.PK;
+    }
+
+    public MatchingAlgo getAlgo() {
+        return algo;
+    }
+
+    public void setAlgo(MatchingAlgo algo) {
+        this.algo = algo;
+    }
+
 
     public Builder newBuilder() {
         return new Builder()
@@ -72,9 +90,10 @@ public class MatchingResult {
         private Integer matchingIndex;
         private Integer elementIndex;
         private Integer matchingCount;
-        private Map<String, Object> difference;
+        private Map<String, MatchingResult> difference;
         private Object expectedValue;
         private Object actualValue;
+        private MatchingAlgo algo;
 
         public Builder setMatchingStatus(MatchingStatus matchingStatus) {
             this.matchingStatus = matchingStatus;
@@ -91,12 +110,12 @@ public class MatchingResult {
             return this;
         }
 
-        public Builder setDifference(Map<String, Object> diff) {
+        public Builder setDifference(Map<String, MatchingResult> diff) {
             this.difference = diff;
             return this;
         }
 
-        public Map<String, Object> getDifference() {
+        public Map<String, MatchingResult> getDifference() {
             return difference;
         }
 
@@ -115,12 +134,30 @@ public class MatchingResult {
             return this;
         }
 
+        public void setAlgo(MatchingAlgo algo) {
+            this.algo = algo;
+        }
+
+        public MatchingAlgo getAlgo() {
+            return algo;
+        }
+
+        public boolean isPassing() {
+            return matchingStatus == MatchingStatus.P;
+        }
+
+        public boolean isFailing() {
+            return matchingStatus == MatchingStatus.F;
+        }
+
         public MatchingStatus getMatchingStatus() {
             return matchingStatus;
         }
 
         MatchingResult create() {
-            return new MatchingResult(matchingStatus, difference, actualValue, expectedValue, matchingCount, matchingIndex, elementIndex);
+            MatchingResult matchingResult = new MatchingResult(matchingStatus, difference, actualValue, expectedValue, matchingCount, matchingIndex, elementIndex);
+            matchingResult.setAlgo(algo);
+            return matchingResult;
         }
     }
 }
