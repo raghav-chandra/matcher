@@ -453,8 +453,8 @@ public class JsonMatcherTest {
 
         JsonObject ignored = new JsonObject().put("secondName", true);
 
-       MatchingResult result =  new JsonMatcher().compare(expected, actual, ignored.getMap(), businessKey.getMap());
-       assertEquals(MatchingStatus.P, result.getStatus());
+        MatchingResult result = new JsonMatcher().compare(expected, actual, ignored.getMap(), businessKey.getMap());
+        assertEquals(MatchingStatus.P, result.getStatus());
     }
 
     @Test(expected = RuntimeException.class)
@@ -475,5 +475,20 @@ public class JsonMatcherTest {
                 .put("firstName", new JsonObject().put("id", true));
 
         new JsonMatcher().compare(expected, actual, ignored.getMap(), businessKey.getMap());
+    }
+
+    @Test
+    public void testIgnoredContainingDiff() {
+        JsonObject expected = new JsonObject()
+                .put("name", new JsonArray().add(new JsonObject().put("second", "Chandra")));
+
+        JsonObject actual = new JsonObject()
+                .put("name", new JsonArray().add(new JsonObject().put("second", "BlahBlah")));
+
+        JsonObject ignored = new JsonObject().put("name", new JsonObject().put("second", true));
+
+        MatchingResult result = new JsonMatcher().compare(expected, actual, ignored.getMap());
+        assertEquals(MatchingStatus.P, result.getStatus());
+
     }
 }

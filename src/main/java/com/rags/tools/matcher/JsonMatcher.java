@@ -168,10 +168,14 @@ public class JsonMatcher implements Matcher {
         nonMatching.forEach(obj -> diffObj.put(String.valueOf(obj.iterator().next().getElemIndex()), findBestMatchedItemAndPopulateMatrix(obj, matrix)));
 
         MatchingResult.Builder result = createStatus(finalStatus.get() ? MatchingStatus.P : MatchingStatus.F);
-        if (!finalStatus.get()) {
+        if (!finalStatus.get() || isIgnored(diffObj)) {
             result.setActualValue(result.create()).setExpectedValue(expected).setDifference(diffObj);
         }
         return result.create();
+    }
+
+    private boolean isIgnored(Map<String, MatchingResult> diffObj) {
+        return diffObj != null && diffObj.values().stream().anyMatch(res -> res.getStatus() == MatchingStatus.IGN || isIgnored(res.getDiff()));
     }
 
     private void blockActualColumn(boolean[][] matrix, MatchingResult result) {
@@ -317,6 +321,9 @@ public class JsonMatcher implements Matcher {
                     MatchingResult result = compare(expValArray, actValArray,
                             ignoreAttr && ignored.getValue(attr) instanceof JsonObject ? ignored.getJsonObject(attr) : new JsonObject(),
                             keyComparison ? businessKey.getJsonObject(attr) : new JsonObject());
+                    if (isIgnored(result.getDiff())) {
+                        internalDiff.setDifference(result.getDiff());
+                    }
                     if (result.getStatus() == MatchingStatus.P) {
                         matchingCount.set(matchingCount.get() + 1);
                     } else {
