@@ -489,6 +489,60 @@ public class JsonMatcherTest {
 
         MatchingResult result = new JsonMatcher().compare(expected, actual, ignored.getMap());
         assertEquals(MatchingStatus.P, result.getStatus());
+    }
 
+    @Test
+    public void testNewAttributeInActual() {
+
+        JsonArray nestedArr1 = new JsonArray()
+                .add(new JsonObject().put("name", "Raghav").put("sec", "Blah"))
+                .add(new JsonObject().put("name", "Raga").put("sec", "Blah1"))
+                .add(new JsonObject().put("name", "Chandra").put("sec", "BB"));
+
+        JsonArray nestedArr2 = new JsonArray()
+                .add(new JsonObject().put("name", "Raghav").put("sec", "Blah1"))
+                .add(new JsonObject().put("name", "Chandra").put("sec", "BB"));
+
+        JsonArray arr1 = new JsonArray()
+                .add(new JsonObject().put("name", "Raghav").put("sec", "Blah").put("comp", new JsonArray()))
+                .add(new JsonObject().put("name", "Chandra").put("sec", "BB").put("comp", nestedArr1));
+
+        JsonArray arr2 = new JsonArray()
+                .add(new JsonObject().put("name", "Raghav").put("sec", "Blah").put("comp", new JsonArray()))
+                .add(new JsonObject().put("name", "Chandra").put("sec", "BB").put("comp", nestedArr2));
+
+        JsonObject expected = new JsonObject()
+                .put("first", "Rags")
+                .put("fullName", arr1)
+                .put("add", "India");
+
+        JsonObject actual = new JsonObject()
+                .put("first", "Rags")
+                .put("fullName", arr2)
+                .put("add", "India");
+
+        JsonObject key = new JsonObject().put("fullName", new JsonObject().put("comp", new JsonObject().put("name", true)));
+
+        MatchingResult result = new JsonMatcher().compare(expected, actual, new HashMap<>(), key.getMap());
+        assertEquals(MatchingStatus.F, result.getStatus());
+    }
+
+    @Test
+    public void testNewAttributesFailsComparison () {
+        JsonObject expected = new JsonObject()
+                .put("first", "Rags")
+                .put("add", "India");
+
+        JsonObject actual = new JsonObject()
+                .put("first", "Rags")
+                .put("second", "Chand")
+                .put("add", "India");
+
+        MatchingResult result = new JsonMatcher().compare(expected, actual);
+        assertEquals(MatchingStatus.F, result.getStatus());
+        Map<String, MatchingResult> diff = result.getDiff();
+
+        assertEquals(MatchingStatus.NW, diff.get("second").getStatus());
+        assertEquals("Chand", diff.get("second").getAct());
     }
 }

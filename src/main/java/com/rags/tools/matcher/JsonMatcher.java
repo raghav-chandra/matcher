@@ -169,7 +169,7 @@ public class JsonMatcher implements Matcher {
 
         MatchingResult.Builder result = createStatus(finalStatus.get() ? MatchingStatus.P : MatchingStatus.F);
         if (!finalStatus.get() || isIgnored(diffObj)) {
-            result.setActualValue(result.create()).setExpectedValue(expected).setDifference(diffObj);
+            result.setActualValue(actual).setExpectedValue(expected).setDifference(diffObj);
         }
         return result.create();
     }
@@ -198,7 +198,7 @@ public class JsonMatcher implements Matcher {
     }
 
     private int sort(MatchingResult r1, MatchingResult r2) {
-        return r1.isOnlyKeyMatching() && !r1.isOnlyKeyMatching()
+        return r1.isOnlyKeyMatching() && !r2.isOnlyKeyMatching()
                 ? -1 : r1.isOnlyKeyMatching() && r2.isOnlyKeyMatching() && r1.getCount() > r2.getCount()
                 ? -1 : r1.isOnlyKeyMatching() && r2.isOnlyKeyMatching() && r1.getCount() != null && r1.getCount().equals(r2.getCount())
                 ? 0 : r2.isOnlyKeyMatching() && !r1.isOnlyKeyMatching()
@@ -336,14 +336,29 @@ public class JsonMatcher implements Matcher {
             diffObj.put(attr, internalDiff.create());
         });
 
+        Set<String> expFields = exp.fieldNames();
+        Set<String> actFields = act.fieldNames();
+        Set<String> newAttr = new HashSet<>(actFields);
+        newAttr.removeAll(expFields);
+
+        if (!newAttr.isEmpty()) {
+            finalStatusObj.setMatchingStatus(MatchingStatus.F);
+            newAttr.forEach(attr -> {
+                diffObj.put(attr, new MatchingResult.Builder().setMatchingStatus(MatchingStatus.NW).setActualValue(act.getValue(attr)).create());
+            });
+        }
+
         if (!finalStatusObj.isPassing()) {
-            List<MatchingResult> keyMatches = finalStatusObj.getDifference().values().stream().filter(res -> res.getAlgo() == MatchingAlgo.K).collect(Collectors.toList());
             if (!businessKey.fieldNames().isEmpty()
                     && exp.fieldNames().containsAll(businessKey.fieldNames())) {
-                if (!keyMatches.isEmpty() && keyMatches.stream().allMatch(MatchingResult::isAllMatching)) {
-                    finalStatusObj.setMatchingStatus(MatchingStatus.PK);
-                } else {
-                    finalStatusObj.setMatchingStatus(MatchingStatus.NE);
+                for (String fieldName : businessKey.fieldNames()) {
+                    if (finalStatusObj.getDifference().get(fieldName).getAlgo() == MatchingAlgo.K && !(exp.getValue(fieldName) instanceof JsonArray)) {
+                        if (finalStatusObj.getDifference().get(fieldName).getStatus() == MatchingStatus.P) {
+                            finalStatusObj.setMatchingStatus(MatchingStatus.PK);
+                        } else {
+                            finalStatusObj.setMatchingStatus(MatchingStatus.NE);
+                        }
+                    }
                 }
             }
             finalStatusObj.setActualValue(act).setExpectedValue(exp).setMatchingCount(matchingCount.get());
