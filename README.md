@@ -56,29 +56,21 @@ Once you get the result, guess what are you going to get...Your result will have
   "diff": {
     "country": {
       "status": "NW",
-      "act": "India",
-      "allMatching": false,
-      "onlyKeyMatching": false
+      "act": "India"
     },
     "firstName": {
       "status": "P",
-      "algo": "M",
-      "allMatching": true,
-      "onlyKeyMatching": false
+      "algo": "M"
     },
     "age": {
       "status": "NE",
-      "exp": 5,
-      "allMatching": false,
-      "onlyKeyMatching": false
+      "exp": 5
     },
     "secondName": {
       "status": "F",
       "exp": "Chandra",
       "act": "Wrong",
-      "algo": "M",
-      "allMatching": false,
-      "onlyKeyMatching": false
+      "algo": "M"
     }
   },
   "exp": {
@@ -90,16 +82,32 @@ Once you get the result, guess what are you going to get...Your result will have
     "firstName": "Raghav",
     "country": "India",
     "secondName": "Wrong"
-  },
-  "allMatching": false,
-  "onlyKeyMatching": false
+  }
 }
 ```
 
 ##### Based on the value in Object1 & Object2
-**firstName**   : Exists in both Object1 & Object2 with matching value "Raghav" 
-**secondName**  : Exists in both Object1 & Object2 but notmatching values "Chandra" vs "Wrong"
-**age**         : Exists in Object1 but not in Object2 (Deleted in Object2)
-**country**     : Doesn't exists in Object1 but exists in Object2 (Added in Object2)
-
+```
+firstName   : Exists in both Object1 & Object2 with matching value "Raghav" 
+secondName  : Exists in both Object1 & Object2 but notmatching values "Chandra" vs "Wrong"
+age         : Exists in Object1 but not in Object2 (Deleted in Object2)
+country     : Doesn't exists in Object1 but exists in Object2 (Added in Object2)
+```
 ##### Now lets look at the results
+```
+status  : 0th level status is the final status of the comparison
+count   : # of matching attributes of the Object
+diff    : Now since the comparison status is F - Failed, diff will be having each and every attribute  as a key and MatchingStatus (similar to top level MatchingStatus) as an object
+exp     : Expected object (object1)
+act     : Actual object (object2)
+```
+###### Now lets go more deep into diff which is very important to understand
+Since total no of attributes involve is 4 (firstName, secondName, age, country), we'll see 4 attributes in diff. Lets go over all the keys and understand what information it provides
+```
+firstName   : status is P means matching value in both object so no exp, act and any info required. 
+secondName  : status is F means not matching values in object1/object2. This wuil have exp & act value populated to identify the difference in value.
+age         : status NE means doesn't exist in Object2, exp will be populated with value from Object1.
+country     : status NW means new attribute in Object2, act will be populated with value from Object2.
+```
+
+Since MatchingResult is nested under diff, those MatchingResult can have further diff in case of nested comparison and its very easy to recursively find out the differences even at the Nth level. 
