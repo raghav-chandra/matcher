@@ -101,7 +101,7 @@ diff    : Now since the comparison status is F - Failed, diff will be having eac
 exp     : Expected object (object1)
 act     : Actual object (object2)
 ```
-###### Now lets go more deep into diff which is very important to understand
+##### Now lets go more deep into diff
 Since total no of attributes involve is 4 (firstName, secondName, age, country), we'll see 4 attributes in diff. Lets go over all the keys and understand what information it provides
 ```
 firstName   : status is P means matching value in both object so no exp, act and any info required. 
