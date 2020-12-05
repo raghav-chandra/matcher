@@ -38,6 +38,7 @@ public class Object1 {
 public class Object2 {
     private String firstName = "Raghav";
     private String secondName = "Wrong";
+    private String country = "India";    
 }
 
 public static void main(String[] args) {
@@ -53,6 +54,12 @@ Once you get the result, guess what are you going to get...Your result will have
   "status": "F",
   "count": 1,
   "diff": {
+    "country": {
+      "status": "NW",
+      "act": "India",
+      "allMatching": false,
+      "onlyKeyMatching": false
+    },
     "firstName": {
       "status": "P",
       "algo": "M",
@@ -81,9 +88,18 @@ Once you get the result, guess what are you going to get...Your result will have
   },
   "act": {
     "firstName": "Raghav",
+    "country": "India",
     "secondName": "Wrong"
   },
   "allMatching": false,
   "onlyKeyMatching": false
 }
 ```
+
+##### Based on the value in Object1 & Object2
+**firstName**   : Exists in both Object1 & Object2 with matching value "Raghav" 
+**secondName**  : Exists in both Object1 & Object2 but notmatching values "Chandra" vs "Wrong"
+**age**         : Exists in Object1 but not in Object2 (Deleted in Object2)
+**country**     : Doesn't exists in Object1 but exists in Object2 (Added in Object2)
+
+##### Now lets look at the results
