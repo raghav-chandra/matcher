@@ -27,7 +27,7 @@ public enum MatchingAlgo {
 ```
 
 ## Examples 
-### 1 Level Object <-> Object comparison 
+### 1 : Level 1 Object <-> Object comparison 
 ```java
 public class Object1 {
     private String firstName = "Raghav";
@@ -111,3 +111,99 @@ country     : status NW means new attribute in Object2, act will be populated wi
 ```
 
 Since MatchingResult is nested under diff, those MatchingResult can have further diff in case of nested comparison and its very easy to recursively find out the differences even at the Nth level. 
+
+### 2 : Level 1 Object <-> Object comparison (all passing)
+```java
+public class Object1 {
+    private String firstName = "Raghav";
+    private String secondName = "Chandra";
+}
+
+public class Object2 {
+    private String firstName = "Raghav";
+    private String secondName = "Chandra"; 
+}
+
+public static void main(String[] args) {
+  Object1 expected = new Object1();
+  Object2 actual = new Object2();
+  
+  MatchingResult result = new JsonMatcher().compare(expected,actual);
+}
+```
+Now result will have status as P which means both of the object matched perfectly. 
+
+### 3 : Nested level Object <-> Object comparison
+```java
+
+public class Nested1 {
+    private String country = "India";
+}
+
+public class Nested2 {
+    private String country= "USA";
+}
+
+public class Object1 {
+    private String name = "Raghav";
+    private Nestedt1 add = new Nested1();
+}
+
+public class Object2 {
+    private String name = "Raghav";
+    private Nestedt2 add = new Nested2();
+}
+
+public static void main(String[] args) {
+  Object1 expected = new Object1();
+  Object2 actual = new Object2();
+  MatchingResult result = new JsonMatcher().compare(expected,actual);
+}
+```
+Status is clearly F as there's mismatch in the country and status. And resul looks like 
+```
+{
+  "status": "F",
+  "count": 1,
+  "diff": {
+    "add": {
+      "status": "F",
+      "diff": {
+        "country": {
+          "status": "F",
+          "exp": "India",
+          "act": "USA"
+        },
+        "City": {
+          "status": "NE",
+          "exp": "Prayagraj"
+        }
+      },
+      "exp": {
+        "City": "Prayagraj",
+        "country": "India"
+      },
+      "act": {
+        "country": "USA"
+      }
+    },
+    "name": {
+      "status": "P"
+    }
+  },
+  "exp": {
+    "name": "Raghav",
+    "add": {
+      "City": "Prayagraj",
+      "country": "India"
+    }
+  },
+  "act": {
+    "name": "Raghav",
+    "add": {
+      "country": "USA"
+    }
+  }
+}
+```
+##### Now lets go more deep into diff cause Its a nested comparison and will have nested diff 
