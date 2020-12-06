@@ -138,6 +138,7 @@ Now result will have status as P which means both of the object matched perfectl
 
 public class Nested1 {
     private String country = "India";
+    private String city="Prayagraj";
 }
 
 public class Nested2 {
@@ -174,13 +175,13 @@ Status is clearly F as there's mismatch in the country and status. And resul loo
           "exp": "India",
           "act": "USA"
         },
-        "City": {
+        "cty": {
           "status": "NE",
           "exp": "Prayagraj"
         }
       },
       "exp": {
-        "City": "Prayagraj",
+        "city": "Prayagraj",
         "country": "India"
       },
       "act": {
@@ -208,5 +209,13 @@ Status is clearly F as there's mismatch in the country and status. And resul loo
 ```
 ##### Now lets go more deep into diff cause Its a nested comparison and will have nested diff 
 ```
-name: 
+level 1 ->
+status  : F, overall not matching
+act     : Object2
+exp     : Objec1 
+diff    : name has status P means value is matching. add has status F means not matching. It has exp (nested1 object) and act object (nested2 object).
+
+level 2 -> Difference of add
+status  : F means, not matching
+diff    : country status is F means country value not matching and has act, exp which contains 2 different values from 2 object. city has status as NE means it doesn't exist in nested2 object.  
 ```
