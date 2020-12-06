@@ -1,5 +1,6 @@
 package com.rags.tools.matcher;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 import java.util.Map;
@@ -56,10 +57,12 @@ public class MatchingResult {
         return count;
     }
 
+    @JsonIgnore
     public boolean isAllMatching() {
         return status == MatchingStatus.P;
     }
 
+    @JsonIgnore
     public boolean isOnlyKeyMatching() {
         return status == MatchingStatus.PK;
     }

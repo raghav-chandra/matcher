@@ -54,7 +54,7 @@ public class JsonMatcher implements Matcher {
         } else if (isPrimitive(expected) && isPrimitive(actual)) {
             boolean isMatching = expected.equals(actual);
             if (!isMatching) {
-                assignStatusAndExpAct(expected, actual, result.setMatchingCount(1), MatchingStatus.F);
+                assignStatusAndExpAct(expected, actual, result.setMatchingCount(0), MatchingStatus.F);
             }
             return result.create();
         } else if (isComparable(expected) && isComparable(actual)) {
@@ -253,9 +253,33 @@ public class JsonMatcher implements Matcher {
         Map<String, MatchingResult> diffObj = new HashMap<>();
         finalStatusObj.setMatchingCount(NEG_INFINITY).setDifference(diffObj);
 
-        exp.iterator().forEachRemaining(item -> {
-            String attr = item.getKey();
-            Object expVal = item.getValue();
+        Set<String> expFields = exp.fieldNames();
+        Set<String> actFields = act.fieldNames();
+
+        Set<String> newAttr = new HashSet<>(actFields);
+        Set<String> delAttr = new HashSet<>(expFields);
+        delAttr.removeAll(actFields);
+        newAttr.removeAll(expFields);
+
+        if (!newAttr.isEmpty()) {
+            finalStatusObj.setMatchingStatus(MatchingStatus.F);
+            newAttr.forEach(attr -> {
+                diffObj.put(attr, new MatchingResult.Builder().setMatchingStatus(MatchingStatus.NW).setActualValue(act.getValue(attr)).create());
+            });
+        }
+
+        if (!delAttr.isEmpty()) {
+            finalStatusObj.setMatchingStatus(MatchingStatus.F);
+            delAttr.forEach(attr -> {
+                diffObj.put(attr, new MatchingResult.Builder().setMatchingStatus(MatchingStatus.NE).setExpectedValue(exp.getValue(attr)).create());
+            });
+        }
+
+        Set<String> intersection = new HashSet<>(expFields);
+        intersection.retainAll(actFields);
+
+        intersection.forEach(attr -> {
+            Object expVal = exp.getValue(attr);
             Object actVal = act.getValue(attr);
             MatchingResult.Builder internalDiff = createStatus(MatchingStatus.P);
 
@@ -267,7 +291,7 @@ public class JsonMatcher implements Matcher {
             if (expVal == null && actVal == null) {
                 matchingCount.set(matchingCount.get() + 1);
             } else if (expVal == null || actVal == null) {
-                assignStatusAndExpAct(expVal, actVal, internalDiff, MatchingStatus.P);
+                assignStatusAndExpAct(expVal, actVal, internalDiff, MatchingStatus.F);
                 if (ignoreAttr) {
                     internalDiff.setMatchingStatus(MatchingStatus.IGN);
                 } else {
@@ -335,18 +359,6 @@ public class JsonMatcher implements Matcher {
 
             diffObj.put(attr, internalDiff.create());
         });
-
-        Set<String> expFields = exp.fieldNames();
-        Set<String> actFields = act.fieldNames();
-        Set<String> newAttr = new HashSet<>(actFields);
-        newAttr.removeAll(expFields);
-
-        if (!newAttr.isEmpty()) {
-            finalStatusObj.setMatchingStatus(MatchingStatus.F);
-            newAttr.forEach(attr -> {
-                diffObj.put(attr, new MatchingResult.Builder().setMatchingStatus(MatchingStatus.NW).setActualValue(act.getValue(attr)).create());
-            });
-        }
 
         if (!finalStatusObj.isPassing()) {
             if (!businessKey.fieldNames().isEmpty()

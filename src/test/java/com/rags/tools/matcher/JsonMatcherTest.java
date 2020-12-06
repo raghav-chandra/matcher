@@ -91,7 +91,7 @@ public class JsonMatcherTest {
         assertEquals(9065065882L, diff.get("mobile").getAct());
         assertEquals(MatchingStatus.P, diff.get("id").getStatus());
 
-        assertEquals(MatchingStatus.F, diff.get("tension").getStatus());
+        assertEquals(MatchingStatus.NE, diff.get("tension").getStatus());
         assertEquals("NO", diff.get("tension").getExp());
         assertNull(diff.get("tension").getAct());
     }
