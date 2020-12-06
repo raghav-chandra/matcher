@@ -13,7 +13,9 @@ import java.util.stream.Collectors;
 
 /**
  * Compares two Objects and produces uniform Matching results across any kind of Objects.
- * Runs best count matching algorithm to perform matching of Arrays
+ * Runs best count matching algorithm to perform matching
+ * Runs Key based matching in case if nested business keys are provided.
+ * Ignores attributes at nested level when nested ignores are provided.
  *
  * @author Raghav Chandra (raghav.yo@gmail.com)
  * @version 1.1.0
