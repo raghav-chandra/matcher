@@ -219,3 +219,19 @@ level 2 -> Difference of add
 status  : F means, not matching
 diff    : country status is F means country value not matching and has act, exp which contains 2 different values from 2 object. city has status as NE means it doesn't exist in nested2 object.  
 ```
+
+### 4 : Primitive comparison
+```java
+public static void main(String[] args) {
+  MatchingResult result = new JsonMatcher().compare(3, 4);
+}
+```
+Result is clear that its failure 3 vs 4 values
+```
+{
+  "status": "F",
+  "count": 0,
+  "exp": 3,
+  "act": 4
+}
+```
