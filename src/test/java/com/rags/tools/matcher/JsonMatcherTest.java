@@ -528,7 +528,7 @@ public class JsonMatcherTest {
     }
 
     @Test
-    public void testNewAttributesFailsComparison () {
+    public void testNewAttributesFailsComparison() {
         JsonObject expected = new JsonObject()
                 .put("first", "Rags")
                 .put("add", "India");
@@ -544,5 +544,28 @@ public class JsonMatcherTest {
 
         assertEquals(MatchingStatus.NW, diff.get("second").getStatus());
         assertEquals("Chand", diff.get("second").getAct());
+    }
+
+    @Test
+    public void test2Array() {
+        List<JsonObject> exp = List.of(new JsonObject().put("first","Raghav").put("second","Chandra").put("third","Nagative"),
+                new JsonObject().put("first","Raghav").put("second","Wrong"));
+        List<JsonObject> act = List.of(new JsonObject().put("first","Raghav").put("second","Blah").put("add","India"),
+                new JsonObject().put("first","Raghav").put("second","Chandra"));
+        MatchingResult result = new JsonMatcher().compare(exp, act);
+        assertEquals(MatchingStatus.F, result.getStatus());
+        Map<String, MatchingResult> diff = result.getDiff();
+
+        assertEquals(MatchingStatus.F, diff.get("0").getStatus());
+        Map<String, MatchingResult> index0Diff = diff.get("0").getDiff();
+        assertEquals(MatchingStatus.P, index0Diff.get("first").getStatus());
+        assertEquals(MatchingStatus.F, index0Diff.get("second").getStatus());
+        assertEquals(MatchingStatus.NE, index0Diff.get("third").getStatus());
+        assertEquals(MatchingStatus.NW, index0Diff.get("add").getStatus());
+
+        assertEquals(MatchingStatus.F, diff.get("1").getStatus());
+        Map<String, MatchingResult> index1Diff = diff.get("1").getDiff();
+        assertEquals(MatchingStatus.P, index0Diff.get("first").getStatus());
+        assertEquals(MatchingStatus.F, index0Diff.get("second").getStatus());
     }
 }
