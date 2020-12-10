@@ -501,6 +501,7 @@ public class JsonMatcherTest {
 
         JsonArray nestedArr2 = new JsonArray()
                 .add(new JsonObject().put("name", "Raghav").put("sec", "Blah1"))
+                .add(new JsonObject().put("name", "Rocker").put("sec", "TotallY"))
                 .add(new JsonObject().put("name", "Chandra").put("sec", "BB"));
 
         JsonArray arr1 = new JsonArray()
@@ -525,6 +526,14 @@ public class JsonMatcherTest {
 
         MatchingResult result = new JsonMatcher().compare(expected, actual, new HashMap<>(), key.getMap());
         assertEquals(MatchingStatus.F, result.getStatus());
+        assertEquals(MatchingStatus.F, result.getDiff().get("fullName").getStatus());
+        assertEquals(MatchingStatus.F, result.getDiff().get("fullName").getDiff().get("1").getStatus());
+        assertEquals(MatchingStatus.F, result.getDiff().get("fullName").getDiff().get("1").getDiff().get("comp").getStatus());
+        Map<String, MatchingResult> compDiff = result.getDiff().get("fullName").getDiff().get("1").getDiff().get("comp").getDiff();
+        assertEquals(MatchingStatus.PK,compDiff.get("0").getStatus());
+        assertEquals(MatchingStatus.NE,compDiff.get("1").getStatus());
+        assertEquals(MatchingStatus.P,compDiff.get("2").getStatus());
+        assertEquals(MatchingStatus.NW,compDiff.get("1NW").getStatus());
     }
 
     @Test
@@ -548,10 +557,10 @@ public class JsonMatcherTest {
 
     @Test
     public void test2Array() {
-        List<JsonObject> exp = List.of(new JsonObject().put("first","Raghav").put("second","Chandra").put("third","Nagative"),
-                new JsonObject().put("first","Raghav").put("second","Wrong"));
-        List<JsonObject> act = List.of(new JsonObject().put("first","Raghav").put("second","Blah").put("add","India"),
-                new JsonObject().put("first","Raghav").put("second","Chandra"));
+        List<JsonObject> exp = List.of(new JsonObject().put("first", "Raghav").put("second", "Chandra").put("third", "Nagative"),
+                new JsonObject().put("first", "Raghav").put("second", "Wrong"));
+        List<JsonObject> act = List.of(new JsonObject().put("first", "Raghav").put("second", "Blah").put("add", "India"),
+                new JsonObject().put("first", "Raghav").put("second", "Chandra"));
         MatchingResult result = new JsonMatcher().compare(exp, act);
         assertEquals(MatchingStatus.F, result.getStatus());
         Map<String, MatchingResult> diff = result.getDiff();
@@ -565,7 +574,33 @@ public class JsonMatcherTest {
 
         assertEquals(MatchingStatus.F, diff.get("1").getStatus());
         Map<String, MatchingResult> index1Diff = diff.get("1").getDiff();
-        assertEquals(MatchingStatus.P, index0Diff.get("first").getStatus());
-        assertEquals(MatchingStatus.F, index0Diff.get("second").getStatus());
+        assertEquals(MatchingStatus.P, index1Diff.get("first").getStatus());
+        assertEquals(MatchingStatus.F, index1Diff.get("second").getStatus());
+    }
+
+    @Test
+    public void testNestedArray() {
+        List<List<Integer>> exp = List.of(List.of(1, 2, 3), List.of(5, 4), List.of(9, 1));
+        List<List<Integer>> act = List.of(List.of(5, 4), List.of(9, 1), List.of(1, 3, 4));
+
+        MatchingResult result = new JsonMatcher().compare(exp, act);
+        assertEquals(MatchingStatus.F, result.getStatus());
+        Map<String, MatchingResult> diff = result.getDiff();
+        assertEquals(MatchingStatus.F, diff.get("0").getStatus());
+        assertEquals(MatchingStatus.P, diff.get("1").getStatus());
+        assertEquals(MatchingStatus.P, diff.get("2").getStatus());
+    }
+
+    @Test
+    public void testNewInArray() {
+        List<Integer> exp = List.of(9, 1);
+        List<Integer> act = List.of(9, 1, 3);
+
+        MatchingResult result = new JsonMatcher().compare(exp, act);
+        assertEquals(MatchingStatus.F, result.getStatus());
+        Map<String, MatchingResult> diff = result.getDiff();
+        assertEquals(MatchingStatus.P,diff.get("0").getStatus());
+        assertEquals(MatchingStatus.P,diff.get("1").getStatus());
+        assertEquals(MatchingStatus.NW,diff.get("2NW").getStatus());
     }
 }

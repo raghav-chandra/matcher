@@ -169,6 +169,13 @@ public class JsonMatcher implements Matcher {
 
         nonMatching.forEach(obj -> diffObj.put(String.valueOf(obj.iterator().next().getElemIndex()), findBestMatchedItemAndPopulateMatrix(obj, matrix)));
 
+        for (int i = 0; i < actual.size(); i++) {
+            if (expected.isEmpty() || !matrix[0][i]) {
+                diffObj.put(i + MatchingStatus.NW.name(), new MatchingResult.Builder().setActualValue(actual.getValue(i)).setMatchingStatus(MatchingStatus.NW).setMatchingIndex(i).setElementIndex(-1).create());
+                finalStatus.set(false);
+            }
+        }
+
         MatchingResult.Builder result = createStatus(finalStatus.get() ? MatchingStatus.P : MatchingStatus.F);
         if (!finalStatus.get() || isIgnored(diffObj)) {
             result.setActualValue(actual).setExpectedValue(expected).setDifference(diffObj);
@@ -191,10 +198,10 @@ public class JsonMatcher implements Matcher {
         allMatches.sort(this::sort);
 
         MatchingResult matchedObj = allMatches.stream().filter(obj -> obj.getElemIndex() != null && obj.getMatIndex() != null && !matrix[obj.getElemIndex()][obj.getMatIndex()]).findFirst().orElse(null);
-        if (matchedObj != null) {
+        if (matchedObj != null && matchedObj.getStatus() != MatchingStatus.NE) {
             blockActualColumn(matrix, matchedObj);
         } else {
-            matchedObj = createStatus(MatchingStatus.NE).create();
+            matchedObj = createStatus(MatchingStatus.NE).setExpectedValue(matchedObj == null ? null : matchedObj.getExp()).create();
         }
         return matchedObj;
     }
@@ -232,9 +239,9 @@ public class JsonMatcher implements Matcher {
                 }
             } else if (exp instanceof JsonObject && act instanceof JsonObject) {
                 result = compare((JsonObject) exp, (JsonObject) act, ignored, businessKey).newBuilder().setMatchingIndex(bestMatchIndex.get()).setElementIndex(elemIndex);
+            } else if (exp instanceof JsonArray && act instanceof JsonArray) {
+                result = compare((JsonArray) exp, (JsonArray) act, ignored, businessKey).newBuilder().setMatchingIndex(bestMatchIndex.get()).setElementIndex(elemIndex);
             }
-
-            //TODO: CODE FOR [[],[],[]]
 
             if (result.getMatchingStatus() == MatchingStatus.F) {
                 failMatchingStatus(exp, act, result.setMatchingIndex(bestMatchIndex.get()), result.getDifference());
