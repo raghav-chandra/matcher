@@ -5,6 +5,15 @@ The output format is so well defined that you can easily traverse up to N level 
 
 You have options to pass in the ignored Attributes in a nicely nested way and so you can ignore attributes at the Nth level as well. Yes you guessed it right, you can compare the objects based on the business Key as well and you can compare Nth level objects based on the BusinessKey. If not provided either, it'll run BestMatching algo. 
 
+To pull in maven 
+```
+<dependency>
+    <groupId>io.github.raghav-chandra</groupId>
+    <artifactId>json-matcher</artifactId>
+    <version>2.0.3</version>
+</dependency>
+```
+
 Ain't it super exciting? Let's go over the result structure and examples for you to gets your hands dirty. 
 
 
